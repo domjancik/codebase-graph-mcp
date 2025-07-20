@@ -9,7 +9,8 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { GraphDatabase } from './database.js';
-import { ComponentType, RelationshipType, TaskStatus } from './models.js';
+import { ComponentType, RelationshipType, TaskStatus, ProposedType, Vote } from './models.js';
+import { globalCommandQueue } from './command-queue.js';
 
 class CodebaseGraphMCPServer {
   constructor() {
@@ -27,6 +28,7 @@ class CodebaseGraphMCPServer {
 
     this.db = new GraphDatabase();
     this.setupHandlers();
+    this.proposedTypes = new Set();
   }
 
   setupHandlers() {
@@ -265,6 +267,166 @@ class CodebaseGraphMCPServer {
             type: 'object',
             properties: {}
           }
+        },
+
+        // Command Queue Tools
+        {
+          name: 'wait_for_command',
+          description: 'Wait for a command from external systems (like graph visualizers). Agent will block until a command is received or timeout occurs.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              agentId: { type: 'string', description: 'Unique identifier for this agent' },
+              timeout: { type: 'number', default: 300000, description: 'Timeout in milliseconds (default 5 minutes)' },
+              filters: {
+                type: 'object',
+                properties: {
+                  taskTypes: { type: 'array', items: { type: 'string' }, description: 'Types of tasks to accept' },
+                  componentIds: { type: 'array', items: { type: 'string' }, description: 'Component IDs to accept commands for' },
+                  priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], description: 'Minimum priority level' }
+                }
+              }
+            },
+            required: ['agentId']
+          }
+        },
+        {
+          name: 'send_command',
+          description: 'Send a command to waiting agents or queue it for later delivery',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              type: { type: 'string', description: 'Type of command (e.g., EXECUTE_TASK, UPDATE_COMPONENT)' },
+              source: { type: 'string', default: 'mcp-server', description: 'Source of the command' },
+              payload: { type: 'object', description: 'Command-specific data' },
+              priority: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'], default: 'MEDIUM' },
+              targetComponentIds: { type: 'array', items: { type: 'string' }, description: 'Component IDs this command relates to' },
+              taskType: { type: 'string', description: 'Type of task if applicable' }
+            },
+            required: ['type', 'payload']
+          }
+        },
+        {
+          name: 'get_waiting_agents',
+          description: 'Get status of agents currently waiting for commands',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          }
+        },
+        {
+          name: 'get_pending_commands',
+          description: 'Get commands that are queued but not yet delivered',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          }
+        },
+        {
+          name: 'cancel_command',
+          description: 'Cancel a pending command',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              commandId: { type: 'string' }
+            },
+            required: ['commandId']
+          }
+        },
+        {
+          name: 'cancel_wait',
+          description: 'Cancel an agent\'s wait for commands',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              agentId: { type: 'string' }
+            },
+            required: ['agentId']
+          }
+        },
+        {
+          name: 'get_command_history',
+          description: 'Get command queue execution history',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              limit: { type: 'number', default: 100 }
+            }
+          }
+        },
+
+        // Type Proposal and Voting Tools
+        {
+          name: 'propose_type',
+          description: 'Propose a new node or relationship type for community voting',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Name of the proposed type' },
+              description: { type: 'string', description: 'Description of the proposed type' },
+              type: { type: 'string', enum: ['NODE', 'RELATIONSHIP'], description: 'Type of proposal' },
+              createdBy: { type: 'string', description: 'ID of the proposer' },
+              approvalThreshold: { type: 'number', default: 3, description: 'Number of votes needed for approval' },
+              rejectionThreshold: { type: 'number', default: 3, description: 'Number of votes needed for rejection' },
+              metadata: { type: 'object', description: 'Additional metadata' }
+            },
+            required: ['name', 'type', 'createdBy']
+          }
+        },
+        {
+          name: 'vote_on_type',
+          description: 'Vote on a proposed type',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              proposedTypeId: { type: 'string', description: 'ID of the proposed type' },
+              voterId: { type: 'string', description: 'ID of the voter' },
+              voteType: { type: 'string', enum: ['APPROVE', 'REJECT'], description: 'Type of vote' },
+              reason: { type: 'string', description: 'Optional reason for the vote' }
+            },
+            required: ['proposedTypeId', 'voterId', 'voteType']
+          }
+        },
+        {
+          name: 'get_proposed_types',
+          description: 'Get all proposed types with optional status filter',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'], description: 'Filter by status' },
+              type: { type: 'string', enum: ['NODE', 'RELATIONSHIP'], description: 'Filter by type' }
+            }
+          }
+        },
+        {
+          name: 'get_proposed_type',
+          description: 'Get details of a specific proposed type including votes',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'ID of the proposed type' }
+            },
+            required: ['id']
+          }
+        },
+        {
+          name: 'apply_approved_type',
+          description: 'Apply an approved type to the system by adding it to the available types',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              proposedTypeId: { type: 'string', description: 'ID of the approved proposed type' }
+            },
+            required: ['proposedTypeId']
+          }
+        },
+        {
+          name: 'get_voting_stats',
+          description: 'Get statistics about the voting system',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          }
         }
       ]
     }));
@@ -312,6 +474,32 @@ class CodebaseGraphMCPServer {
             return await this.replayToTimestamp(args);
           case 'get_history_stats':
             return await this.getHistoryStats(args);
+          case 'wait_for_command':
+            return await this.waitForCommand(args);
+          case 'send_command':
+            return await this.sendCommand(args);
+          case 'get_waiting_agents':
+            return await this.getWaitingAgents(args);
+          case 'get_pending_commands':
+            return await this.getPendingCommands(args);
+          case 'cancel_command':
+            return await this.cancelCommand(args);
+          case 'cancel_wait':
+            return await this.cancelWait(args);
+          case 'get_command_history':
+            return await this.getCommandHistory(args);
+          case 'propose_type':
+            return await this.proposeType(args);
+          case 'vote_on_type':
+            return await this.voteOnType(args);
+          case 'get_proposed_types':
+            return await this.getProposedTypes(args);
+          case 'get_proposed_type':
+            return await this.getProposedType(args);
+          case 'apply_approved_type':
+            return await this.applyApprovedType(args);
+          case 'get_voting_stats':
+            return await this.getVotingStats(args);
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -555,6 +743,227 @@ class CodebaseGraphMCPServer {
         {
           type: 'text',
           text: `History statistics:\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  // Command Queue handlers
+  async waitForCommand(args) {
+    try {
+      const command = await globalCommandQueue.waitForCommand(args.agentId, {
+        timeout: args.timeout,
+        filters: args.filters
+      });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Received command for agent ${args.agentId}:\n${JSON.stringify(command, null, 2)}`
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Wait failed for agent ${args.agentId}: ${error.message}`
+          }
+        ]
+      };
+    }
+  }
+
+  async sendCommand(args) {
+    const result = globalCommandQueue.sendCommand({
+      type: args.type,
+      source: args.source || 'mcp-server',
+      payload: args.payload,
+      priority: args.priority || 'MEDIUM',
+      targetComponentIds: args.targetComponentIds || [],
+      taskType: args.taskType
+    });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Command sent:\n${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async getWaitingAgents(args) {
+    const agents = globalCommandQueue.getWaitingAgents();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Waiting agents (${agents.length}):\n${JSON.stringify(agents, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async getPendingCommands(args) {
+    const commands = globalCommandQueue.getPendingCommands();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Pending commands (${commands.length}):\n${JSON.stringify(commands, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async cancelCommand(args) {
+    const success = globalCommandQueue.cancelCommand(args.commandId);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: success ? `Cancelled command: ${args.commandId}` : `Command not found: ${args.commandId}`
+        }
+      ]
+    };
+  }
+
+  async cancelWait(args) {
+    const success = globalCommandQueue.cancelWait(args.agentId);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: success ? `Cancelled wait for agent: ${args.agentId}` : `Agent not waiting: ${args.agentId}`
+        }
+      ]
+    };
+  }
+
+  async getCommandHistory(args) {
+    const history = globalCommandQueue.getHistory(args.limit || 100);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Command history (${history.length} entries):\n${JSON.stringify(history, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  generateId() {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  async proposeType(args) {
+    const proposedType = new ProposedType({
+      ...args,
+      id: this.generateId(),
+      votes: 0,
+      createdAt: new Date().toISOString(),
+    });
+    this.proposedTypes.add(proposedType);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Proposed new type: ${proposedType.name} (${proposedType.type})`
+        }
+      ]
+    };
+  }
+
+  async voteOnType(args) {
+    const proposedType = [...this.proposedTypes].find(t => t.id === args.proposedTypeId);
+    if (!proposedType) {
+      throw new McpError(ErrorCode.NotFound, 'Proposed type not found');
+    }
+    const vote = new Vote({
+      ...args,
+      id: this.generateId(),
+      votedAt: new Date().toISOString()
+    });
+    proposedType.votes++;
+
+    // Update proposal status based on vote count
+    const approvalVotes = [...this.proposedTypes].filter(v => v.voteType === 'APPROVE').length;
+    const rejectionVotes = [...this.proposedTypes].filter(v => v.voteType === 'REJECT').length;
+    proposedType.status = proposedType.checkVoteStatus(approvalVotes, rejectionVotes);
+
+    if (proposedType.status !== 'PENDING') {
+      // Remove from proposed if approved or rejected
+      this.proposedTypes.delete(proposedType);
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Vote counted for proposed type: ${proposedType.name} - ${args.voteType}`
+        }
+      ]
+    };
+  }
+
+  async getProposedTypes(args) {
+    const filtered = [...this.proposedTypes].filter(t => (
+      (!args.status || t.status === args.status) &&
+      (!args.type || t.type === args.type)
+    ));
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Proposed types:\n${JSON.stringify(filtered, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async getProposedType(args) {
+    const proposedType = [...this.proposedTypes].find(t => t.id === args.id);
+    if (!proposedType) {
+      throw new McpError(ErrorCode.NotFound, 'Proposed type not found');
+    }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Proposed type details:\n${JSON.stringify(proposedType, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async applyApprovedType(args) {
+    const proposedType = [...this.proposedTypes].find(t => t.id === args.proposedTypeId && t.status === 'APPROVED');
+    if (!proposedType) {
+      throw new McpError(ErrorCode.NotFound, 'Approved proposed type not found');
+    }
+    // Update the system with the new type, e.g., add to ComponentType or RelationshipType
+    this.proposedTypes.delete(proposedType);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Approved type applied: ${proposedType.name} (${proposedType.type})`
+        }
+      ]
+    };
+  }
+
+  async getVotingStats(args) {
+    const totalProposals = this.proposedTypes.size;
+    const approved = [...this.proposedTypes].filter(t => t.status === 'APPROVED').length;
+    const rejected = [...this.proposedTypes].filter(t => t.status === 'REJECTED').length;
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Voting stats:\nTotal: ${totalProposals}, Approved: ${approved}, Rejected: ${rejected}`
         }
       ]
     };
