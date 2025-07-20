@@ -1,0 +1,32 @@
+{
+  "name": "codebase-graph-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for tracking software codebase components and relationships using Neo4j",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "setup-db": "node scripts/setup-db.js",
+    "test": "node --test test/*.test.js",
+    "example": "node examples/usage-example.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "neo4j-driver": "^5.15.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  },
+  "keywords": [
+    "mcp",
+    "codebase",
+    "graph-database",
+    "neo4j",
+    "software-analysis"
+  ],
+  "author": "Agent",
+  "license": "MIT"
+}
