@@ -1,10 +1,12 @@
 import neo4j from 'neo4j-driver';
 import { v4 as uuidv4 } from 'uuid';
 import { Component, Relationship, Task } from './models.js';
+import { ChangeHistory } from './history.js';
 
 export class GraphDatabase {
   constructor(uri = 'bolt://localhost:7687', username = 'neo4j', password = 'password') {
     this.driver = neo4j.driver(uri, neo4j.auth.basic(username, password));
+    this.history = new ChangeHistory(this);
   }
 
   async close() {
@@ -34,13 +36,16 @@ export class GraphDatabase {
       await session.run('CREATE INDEX component_type IF NOT EXISTS FOR (c:Component) ON (c.type)');
       await session.run('CREATE INDEX component_codebase IF NOT EXISTS FOR (c:Component) ON (c.codebase)');
       await session.run('CREATE INDEX task_status IF NOT EXISTS FOR (t:Task) ON (t.status)');
+      
+      // Initialize change history schema
+      await this.history.initializeSchema();
     } finally {
       await session.close();
     }
   }
 
   // Component Operations
-  async createComponent(componentData) {
+  async createComponent(componentData, metadata = {}) {
     const component = new Component({ ...componentData, id: componentData.id || uuidv4() });
     const session = this.driver.session();
     
@@ -51,7 +56,21 @@ export class GraphDatabase {
         RETURN c
       `, { properties: component.toNode().properties });
       
-      return result.records[0]?.get('c').properties;
+      const createdComponent = result.records[0]?.get('c').properties;
+      
+      // Record change history
+      if (createdComponent) {
+        await this.history.recordChange(
+          'CREATE_COMPONENT',
+          'COMPONENT',
+          createdComponent.id,
+          null,
+          createdComponent,
+          metadata
+        );
+      }
+      
+      return createdComponent;
     } finally {
       await session.close();
     }

@@ -199,6 +199,72 @@ class CodebaseGraphMCPServer {
             },
             required: ['codebase']
           }
+        },
+
+        // Change History and Replay Tools
+        {
+          name: 'get_change_history',
+          description: 'Get change history for an entity or recent changes',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              entityId: { type: 'string' },
+              limit: { type: 'number', default: 50 },
+              operation: { type: 'string' }
+            }
+          }
+        },
+        {
+          name: 'create_snapshot',
+          description: 'Create a snapshot of the current database state',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              description: { type: 'string' }
+            },
+            required: ['name']
+          }
+        },
+        {
+          name: 'list_snapshots',
+          description: 'List all available snapshots',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          }
+        },
+        {
+          name: 'restore_snapshot',
+          description: 'Restore database from a snapshot',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              snapshotId: { type: 'string' },
+              dryRun: { type: 'boolean', default: false }
+            },
+            required: ['snapshotId']
+          }
+        },
+        {
+          name: 'replay_to_timestamp',
+          description: 'Replay changes to recreate database state at a specific time',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              timestamp: { type: 'string' },
+              dryRun: { type: 'boolean', default: true }
+            },
+            required: ['timestamp']
+          }
+        },
+        {
+          name: 'get_history_stats',
+          description: 'Get statistics about change history',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          }
         }
       ]
     }));
@@ -234,6 +300,18 @@ class CodebaseGraphMCPServer {
             return await this.updateTaskStatus(args);
           case 'get_codebase_overview':
             return await this.getCodebaseOverview(args);
+          case 'get_change_history':
+            return await this.getChangeHistory(args);
+          case 'create_snapshot':
+            return await this.createSnapshot(args);
+          case 'list_snapshots':
+            return await this.listSnapshots(args);
+          case 'restore_snapshot':
+            return await this.restoreSnapshot(args);
+          case 'replay_to_timestamp':
+            return await this.replayToTimestamp(args);
+          case 'get_history_stats':
+            return await this.getHistoryStats(args);
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
@@ -399,6 +477,84 @@ class CodebaseGraphMCPServer {
         {
           type: 'text',
           text: `Codebase overview for ${args.codebase}:\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  // Change History handlers
+  async getChangeHistory(args) {
+    let results;
+    if (args.entityId) {
+      results = await this.db.history.getEntityHistory(args.entityId, args.limit || 50);
+    } else {
+      results = await this.db.history.getRecentChanges(args.limit || 100, args.operation);
+    }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Change history (${results.length} entries):\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async createSnapshot(args) {
+    const result = await this.db.history.createSnapshot(args.name, { description: args.description });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Created snapshot: ${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async listSnapshots(args) {
+    const results = await this.db.history.listSnapshots();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Available snapshots (${results.length}):\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async restoreSnapshot(args) {
+    const result = await this.db.history.restoreFromSnapshot(args.snapshotId, args.dryRun || false);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Snapshot restore result:\n${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async replayToTimestamp(args) {
+    const result = await this.db.history.replayToTimestamp(args.timestamp, args.dryRun !== false);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Replay result:\n${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async getHistoryStats(args) {
+    const results = await this.db.history.getHistoryStats();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `History statistics:\n${JSON.stringify(results, null, 2)}`
         }
       ]
     };
