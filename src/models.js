@@ -33,6 +33,36 @@ export const TaskStatus = {
   CANCELLED: 'CANCELLED'
 };
 
+// Proposed Node and Relationship Types
+export const ProposedTypeStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED'
+};
+
+export const ProposedTypeSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  type: z.string().enum(['NODE', 'RELATIONSHIP']),
+  status: z.nativeEnum(ProposedTypeStatus).default('PENDING'),
+  votes: z.number().min(0).default(0),
+  createdBy: z.string(),
+  createdAt: z.string().datetime(),
+  approvalThreshold: z.number().min(1).default(3),
+  rejectionThreshold: z.number().min(1).default(3),
+  metadata: z.record(z.string()).default({})
+});
+
+export const VoteSchema = z.object({
+  id: z.string().uuid(),
+  proposedTypeId: z.string().uuid(),
+  voterId: z.string(),
+  voteType: z.string().enum(['APPROVE', 'REJECT']),
+  reason: z.string().optional(),
+  votedAt: z.string().datetime()
+});
+
 // Zod Schemas for validation
 export const ComponentSchema = z.object({
   id: z.string().uuid(),
@@ -118,6 +148,64 @@ export class Task {
         status: this.status,
         progress: this.progress,
         ...this.metadata
+      }
+    };
+  }
+}
+
+export class ProposedType {
+  constructor(data) {
+    const validated = ProposedTypeSchema.parse(data);
+    Object.assign(this, validated);
+  }
+
+  toNode() {
+    return {
+      labels: ['ProposedType'],
+      properties: {
+        id: this.id,
+        name: this.name,
+        description: this.description || '',
+        type: this.type,
+        status: this.status,
+        votes: this.votes,
+        createdBy: this.createdBy,
+        createdAt: this.createdAt,
+        approvalThreshold: this.approvalThreshold,
+        rejectionThreshold: this.rejectionThreshold,
+        ...this.metadata
+      }
+    };
+  }
+
+  // Check if proposal should be approved or rejected
+  checkVoteStatus(approvalVotes, rejectionVotes) {
+    if (approvalVotes >= this.approvalThreshold) {
+      return 'APPROVED';
+    }
+    if (rejectionVotes >= this.rejectionThreshold) {
+      return 'REJECTED';
+    }
+    return 'PENDING';
+  }
+}
+
+export class Vote {
+  constructor(data) {
+    const validated = VoteSchema.parse(data);
+    Object.assign(this, validated);
+  }
+
+  toNode() {
+    return {
+      labels: ['Vote'],
+      properties: {
+        id: this.id,
+        proposedTypeId: this.proposedTypeId,
+        voterId: this.voterId,
+        voteType: this.voteType,
+        reason: this.reason || '',
+        votedAt: this.votedAt
       }
     };
   }
