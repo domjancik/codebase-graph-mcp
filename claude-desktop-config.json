@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp"
+    }
+  }
+}

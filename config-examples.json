@@ -1,0 +1,135 @@
+{
+  "examples": {
+    "claude-desktop": {
+      "description": "Configuration for Claude Desktop application",
+      "config": {
+        "mcpServers": {
+          "codebase-graph": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "C:/Users/magne/codebase-graph-mcp"
+          }
+        }
+      }
+    },
+    
+    "custom-neo4j": {
+      "description": "Configuration with custom Neo4j settings",
+      "config": {
+        "mcpServers": {
+          "codebase-graph": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "C:/Users/magne/codebase-graph-mcp",
+            "env": {
+              "NEO4J_URI": "bolt://localhost:7687",
+              "NEO4J_USERNAME": "neo4j",
+              "NEO4J_PASSWORD": "your-secure-password"
+            }
+          }
+        }
+      }
+    },
+
+    "remote-neo4j": {
+      "description": "Configuration for remote Neo4j instance",
+      "config": {
+        "mcpServers": {
+          "codebase-graph": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "C:/Users/magne/codebase-graph-mcp",
+            "env": {
+              "NEO4J_URI": "bolt://your-neo4j-host:7687",
+              "NEO4J_USERNAME": "your-username",
+              "NEO4J_PASSWORD": "your-password"
+            }
+          }
+        }
+      }
+    },
+
+    "production": {
+      "description": "Production configuration with SSL and authentication",
+      "config": {
+        "mcpServers": {
+          "codebase-graph": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "/path/to/codebase-graph-mcp",
+            "env": {
+              "NEO4J_URI": "bolt+s://production-neo4j:7687",
+              "NEO4J_USERNAME": "production-user",
+              "NEO4J_PASSWORD": "secure-production-password",
+              "NODE_ENV": "production"
+            }
+          }
+        }
+      }
+    },
+
+    "multiple-codebases": {
+      "description": "Configuration for multiple codebase instances",
+      "config": {
+        "mcpServers": {
+          "codebase-graph-main": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "C:/Users/magne/codebase-graph-mcp",
+            "env": {
+              "NEO4J_URI": "bolt://localhost:7687",
+              "NEO4J_USERNAME": "neo4j",
+              "NEO4J_PASSWORD": "password"
+            }
+          },
+          "codebase-graph-staging": {
+            "command": "node",
+            "args": ["src/index.js"],
+            "cwd": "C:/Users/magne/codebase-graph-mcp",
+            "env": {
+              "NEO4J_URI": "bolt://localhost:7688",
+              "NEO4J_USERNAME": "neo4j",
+              "NEO4J_PASSWORD": "staging-password"
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "setup_instructions": {
+    "claude_desktop": [
+      "1. Copy the 'claude-desktop' config from above",
+      "2. Open Claude Desktop settings",
+      "3. Navigate to MCP Servers configuration",
+      "4. Add the configuration JSON",
+      "5. Restart Claude Desktop",
+      "6. The codebase-graph tools will be available"
+    ],
+    
+    "generic_mcp_client": [
+      "1. Ensure Neo4j is running on bolt://localhost:7687",
+      "2. Run: cd C:/Users/magne/codebase-graph-mcp && npm run setup-db",
+      "3. Copy the appropriate config from above",
+      "4. Add to your MCP client configuration",
+      "5. Restart your MCP client",
+      "6. Tools will be available under 'codebase-graph' namespace"
+    ]
+  },
+
+  "available_tools": [
+    "create_component - Create new codebase components",
+    "get_component - Retrieve component by ID", 
+    "search_components - Search components with filters",
+    "update_component - Update existing components",
+    "delete_component - Delete components",
+    "create_relationship - Create relationships between components",
+    "get_component_relationships - Get component relationships",
+    "get_dependency_tree - Analyze dependency trees",
+    "create_task - Create development tasks",
+    "get_task - Get task details",
+    "get_tasks - List tasks with optional filters",
+    "update_task_status - Update task progress",
+    "get_codebase_overview - Get codebase statistics"
+  ]
+}

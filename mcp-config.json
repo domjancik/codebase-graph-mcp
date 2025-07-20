@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "password"
+      }
+    }
+  }
+}

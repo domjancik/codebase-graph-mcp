@@ -43,6 +43,29 @@ npm start
 
 ## Configuration
 
+### MCP Client Configuration
+To connect an MCP client (like Claude Desktop) to this server, use this configuration:
+
+```json
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp"
+    }
+  }
+}
+```
+
+**For Claude Desktop:**
+1. Copy the configuration from `claude-desktop-config.json`
+2. Add it to your Claude Desktop MCP settings
+3. Restart Claude Desktop
+4. The codebase-graph tools will be available
+
+**Alternative configurations** are available in `config-examples.json` for different setups (remote Neo4j, custom credentials, etc.).
+
 ### Database Connection
 Edit the database connection in `src/database.js` if needed:
 ```javascript
