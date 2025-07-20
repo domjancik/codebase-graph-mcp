@@ -1,6 +1,21 @@
 # Quick Start Guide
 
-## Prerequisites Setup (5 minutes)
+## Prerequisites Setup
+
+### Option A: Docker Setup (Recommended - 2 minutes)
+
+1. **Start Neo4j database:**
+   ```bash
+   cd codebase-graph-mcp
+   docker compose up -d neo4j
+   ```
+
+2. **Install Node.js dependencies:**
+   ```bash
+   npm install
+   ```
+
+### Option B: Manual Neo4j Installation (5 minutes)
 
 1. **Install Neo4j Community Edition**
    - Download from: https://neo4j.com/download/
