@@ -144,6 +144,8 @@ export DEBUG=true                # Enable debug logging
 ## Usage
 
 ### Component Types
+
+#### Code Components
 - `FILE`: Source code files
 - `FUNCTION`: Functions or methods
 - `CLASS`: Classes or types
@@ -152,6 +154,14 @@ export DEBUG=true                # Enable debug logging
 - `INTERFACE`: Interfaces or contracts
 - `VARIABLE`: Variables or constants
 - `CONSTANT`: Constants or configuration
+
+#### Requirements & Specifications
+- `REQUIREMENT`: System or functional requirements
+- `SPECIFICATION`: Technical specifications
+- `FEATURE`: Feature definitions
+- `USER_STORY`: User stories and scenarios
+- `ACCEPTANCE_CRITERIA`: Acceptance criteria for features
+- `TEST_CASE`: Test cases and scenarios
 
 ### Relationship Types
 - `DEPENDS_ON`: Component depends on another
