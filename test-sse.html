@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Test - Codebase Graph MCP</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        .error { background: #f8d7da; color: #721c24; }
+        .events { 
+            max-height: 400px; 
+            overflow-y: auto; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            margin: 10px 0;
+            background: #f8f9fa;
+            font-family: monospace;
+        }
+        .event { 
+            margin: 5px 0; 
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            background: white;
+        }
+        .event-type { 
+            font-weight: bold; 
+            color: #007bff; 
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Codebase Graph MCP - SSE Test</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected
+        </div>
+
+        <div>
+            <button id="connectBtn" onclick="connect()">Connect to SSE</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="clearEvents()">Clear Events</button>
+            <button onclick="testAPI()">Test API</button>
+        </div>
+
+        <h3>📡 Real-time Events:</h3>
+        <div id="events" class="events">
+            <div class="event">
+                <span class="event-type">INFO:</span> Click "Connect to SSE" to start receiving events...
+            </div>
+        </div>
+
+        <h3>📊 Connection Info:</h3>
+        <div id="info">
+            <p><strong>Server URL:</strong> <span id="serverUrl">-</span></p>
+            <p><strong>Client ID:</strong> <span id="clientId">-</span></p>
+            <p><strong>Connected At:</strong> <span id="connectedAt">-</span></p>
+            <p><strong>Events Received:</strong> <span id="eventCount">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+        let eventCount = 0;
+        const serverUrl = 'http://localhost:3001';
+
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${className}`;
+        }
+
+        function addEvent(type, data) {
+            eventCount++;
+            document.getElementById('eventCount').textContent = eventCount;
+            
+            const eventsContainer = document.getElementById('events');
+            const eventDiv = document.createElement('div');
+            eventDiv.className = 'event';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            eventDiv.innerHTML = `
+                <span class="event-type">${type.toUpperCase()}:</span>
+                [${timestamp}] ${JSON.stringify(data, null, 2)}
+            `;
+            
+            eventsContainer.appendChild(eventDiv);
+            eventsContainer.scrollTop = eventsContainer.scrollHeight;
+        }
+
+        function connect() {
+            if (eventSource) {
+                disconnect();
+            }
+
+            updateStatus('Connecting...', 'disconnected');
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('serverUrl').textContent = `${serverUrl}/events`;
+
+            eventSource = new EventSource(`${serverUrl}/events`);
+
+            eventSource.onopen = function(event) {
+                updateStatus('Connected!', 'connected');
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('connectedAt').textContent = new Date().toLocaleString();
+                addEvent('connection', { status: 'opened' });
+            };
+
+            eventSource.onmessage = function(event) {
+                addEvent('message', { data: event.data });
+            };
+
+            eventSource.addEventListener('connected', function(event) {
+                const data = JSON.parse(event.data);
+                document.getElementById('clientId').textContent = data.clientId;
+                addEvent('connected', data);
+            });
+
+            eventSource.addEventListener('heartbeat', function(event) {
+                const data = JSON.parse(event.data);
+                addEvent('heartbeat', data);
+            });
+
+            eventSource.addEventListener('component-created', function(event) {
+                const data = JSON.parse(event.data);
+                addEvent('component-created', data);
+            });
+
+            eventSource.addEventListener('task-created', function(event) {
+                const data = JSON.parse(event.data);
+                addEvent('task-created', data);
+            });
+
+            eventSource.onerror = function(event) {
+                console.error('SSE Error:', event);
+                updateStatus('Connection Error', 'error');
+                addEvent('error', { readyState: eventSource.readyState, error: 'Connection failed' });
+                
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+            };
+        }
+
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+            
+            updateStatus('Disconnected', 'disconnected');
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            addEvent('connection', { status: 'disconnected' });
+        }
+
+        function clearEvents() {
+            document.getElementById('events').innerHTML = '';
+            eventCount = 0;
+            document.getElementById('eventCount').textContent = '0';
+        }
+
+        async function testAPI() {
+            try {
+                // Test health endpoint
+                const healthResponse = await fetch(`${serverUrl}/health`);
+                const healthData = await healthResponse.json();
+                addEvent('api-test', { endpoint: '/health', response: healthData });
+
+                // Test creating a component (this will trigger SSE event)
+                const componentData = {
+                    type: 'FILE',
+                    name: 'test-component.js',
+                    description: 'Test component created from SSE test page',
+                    codebase: 'test-codebase'
+                };
+
+                const createResponse = await fetch(`${serverUrl}/api/components`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(componentData)
+                });
+                
+                const createData = await createResponse.json();
+                addEvent('api-test', { endpoint: '/api/components (POST)', response: createData });
+
+            } catch (error) {
+                addEvent('api-error', { error: error.message });
+            }
+        }
+
+        // Auto-connect on page load
+        window.addEventListener('load', function() {
+            // Small delay to ensure the page is fully loaded
+            setTimeout(connect, 500);
+        });
+    </script>
+</body>
+</html>
