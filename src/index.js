@@ -11,6 +11,7 @@ import {
 import { GraphDatabase } from './database.js';
 import { ComponentType, RelationshipType, TaskStatus, ProposedType, Vote } from './models.js';
 import { globalCommandQueue } from './command-queue.js';
+import { CodebaseGraphHTTPServer } from './http-server.js';
 
 class CodebaseGraphMCPServer {
   constructor() {
@@ -30,8 +31,17 @@ class CodebaseGraphMCPServer {
     
     // Configuration - voting system is disabled by default
     this.config = {
-      enableVoting: process.env.ENABLE_VOTING === 'true' || false
+      enableVoting: process.env.ENABLE_VOTING === 'true' || false,
+      enableHTTP: process.env.ENABLE_HTTP !== 'false', // HTTP enabled by default
+      httpOnly: process.env.HTTP_ONLY === 'true' || false // HTTP-only mode (no MCP stdio)
     };
+    
+    // Initialize HTTP server if enabled
+    this.httpServer = this.config.enableHTTP ? new CodebaseGraphHTTPServer({
+      db: this.db,
+      port: process.env.HTTP_PORT || 3000,
+      host: process.env.HTTP_HOST || 'localhost'
+    }) : null;
     
     this.setupHandlers();
     this.proposedTypes = new Set();
@@ -1003,10 +1013,25 @@ class CodebaseGraphMCPServer {
       
       console.error('Database connection established and schema initialized');
       
-      // Start the server
-      const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-      console.error('Codebase Graph MCP Server running on stdio');
+      // Start the MCP server (skip in HTTP-only mode)
+      if (!this.config.httpOnly) {
+        const transport = new StdioServerTransport();
+        await this.server.connect(transport);
+        console.error('Codebase Graph MCP Server running on stdio');
+      } else {
+        console.error('MCP Server initialized (HTTP-only mode - stdio disabled)');
+      }
+      
+      // Start HTTP server if enabled
+      if (this.httpServer) {
+        try {
+          await this.httpServer.start();
+          console.error('HTTP Server with SSE started successfully');
+        } catch (error) {
+          console.error('Failed to start HTTP server:', error.message);
+          console.error('Continuing with MCP server only...');
+        }
+      }
     } catch (error) {
       console.error('Failed to start server:', error);
       process.exit(1);
@@ -1014,6 +1039,9 @@ class CodebaseGraphMCPServer {
   }
 
   async close() {
+    if (this.httpServer) {
+      await this.httpServer.stop();
+    }
     await this.db.close();
   }
 }
