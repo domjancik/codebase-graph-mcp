@@ -101,6 +101,55 @@ async function testMCPServer() {
     console.log('❌ Task Management error:', error.message);
   }
 
+  // Test Comment Management Tools
+  console.log('\n💬 Testing Comment Management Tools:');
+  
+  try {
+    // Create a test component first for commenting
+    const testComponent = await mcpServer.handleRequest('create_component', {
+      type: 'CLASS',
+      name: 'CommentTestComponent',
+      description: 'Component for comment testing',
+      codebase: 'test-codebase'
+    });
+
+    // Test creating a comment
+    const comment = await mcpServer.handleRequest('create_node_comment', {
+      nodeId: testComponent.id,
+      content: 'This is a test comment on a component',
+      author: 'test-user'
+    });
+    console.log('✅ create_node_comment:', comment.content.substring(0, 20) + '...');
+
+    // Test getting comments for a node
+    const comments = await mcpServer.handleRequest('get_node_comments', {
+      nodeId: testComponent.id,
+      limit: 10
+    });
+    console.log('✅ get_node_comments:', comments.length, 'comments');
+
+    // Test updating a comment
+    const updatedComment = await mcpServer.handleRequest('update_comment', {
+      commentId: comment.id,
+      content: 'This is an updated test comment'
+    });
+    console.log('✅ update_comment:', updatedComment.content.substring(0, 20) + '...');
+
+    // Test getting a specific comment
+    const retrievedComment = await mcpServer.handleRequest('get_comment', {
+      commentId: comment.id
+    });
+    console.log('✅ get_comment:', retrievedComment.id === comment.id ? 'found' : 'not found');
+
+    // Test deleting a comment
+    const deletedComment = await mcpServer.handleRequest('delete_comment', {
+      commentId: comment.id
+    });
+    console.log('✅ delete_comment:', deletedComment.success ? 'success' : 'failed');
+  } catch (error) {
+    console.log('❌ Comment Management error:', error.message);
+  }
+
   // Test Relationship Management Tools
   console.log('\n🔗 Testing Relationship Management Tools:');
   
@@ -179,10 +228,11 @@ async function testMCPServer() {
   console.log('• Linear Integration: ✅ 24 tools implemented');
   console.log('• Component Management: ✅ 7 tools implemented');  
   console.log('• Task Management: ✅ 5 tools implemented');
+  console.log('• Comment Management: ✅ 5 tools implemented');
   console.log('• Relationship Management: ✅ 4 tools implemented');
   console.log('• Command Queue System: ✅ 8 tools implemented');
   console.log('• Snapshot Management: ✅ 6 tools implemented');
-  console.log('• Total: ✅ 54 MCP tools ready for use');
+  console.log('• Total: ✅ 59 MCP tools ready for use');
 }
 
 // Run the test

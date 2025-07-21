@@ -2,12 +2,13 @@ import { v4 as uuidv4 } from 'uuid';
 import neo4j from 'neo4j-driver';
 
 /**
- * Comprehensive MCP Server implementing all 54 tools for Linear integration and codebase management
+ * Comprehensive MCP Server implementing all 59 tools for Linear integration and codebase management
  * 
  * Categories:
  * - Linear Integration (20+ tools)
  * - Component Management (7 tools) 
  * - Task Management (5 tools)
+ * - Comment Management (5 tools)
  * - Relationship Management (4 tools)
  * - Command Queue System (8 tools)
  * - Snapshot Management (6 tools)
@@ -549,6 +550,162 @@ class MCPServer {
   }
 
   // ============================================================================
+  // COMMENT MANAGEMENT TOOLS
+  // ============================================================================
+
+  async createNodeComment({ nodeId, content, author = 'system', metadata }) {
+    const session = this.driver.session();
+    try {
+      const commentId = uuidv4();
+      const metadataProps = metadata ? Object.entries(metadata).map(([k, v]) => `${k}: $metadata_${k}`).join(', ') : '';
+      const metadataParams = metadata ? Object.fromEntries(Object.entries(metadata).map(([k, v]) => [`metadata_${k}`, String(v)])) : {};
+      
+      // First verify that the target node exists (could be Task, Component, etc.)
+      const nodeCheck = await session.run(`
+        MATCH (n) WHERE n.id = $nodeId
+        RETURN n
+      `, { nodeId });
+      
+      if (nodeCheck.records.length === 0) {
+        throw new Error(`Node with id ${nodeId} not found`);
+      }
+      
+      // Create the comment node
+      await session.run(`
+        CREATE (c:Comment {
+          id: $id,
+          content: $content,
+          author: $author,
+          created: datetime(),
+          ${metadataProps}
+        })
+      `, {
+        id: commentId,
+        content,
+        author,
+        ...metadataParams
+      });
+      
+      // Create relationship from target node to comment
+      await session.run(`
+        MATCH (n) WHERE n.id = $nodeId
+        MATCH (c:Comment {id: $commentId})
+        CREATE (n)-[:HAS_COMMENT]->(c)
+      `, { nodeId, commentId });
+
+      this.addToHistory('CREATE_COMMENT', { commentId, nodeId, content, author });
+      
+      return {
+        id: commentId,
+        nodeId,
+        content,
+        author,
+        created: new Date().toISOString(),
+        metadata
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getNodeComments({ nodeId, limit = 50 }) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(`
+        MATCH (n)-[:HAS_COMMENT]->(c:Comment)
+        WHERE n.id = $nodeId
+        RETURN c
+        ORDER BY c.created DESC
+        LIMIT $limit
+      `, { nodeId, limit });
+      
+      return result.records.map(record => record.get('c').properties);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async updateComment({ commentId, content, metadata }) {
+    const session = this.driver.session();
+    try {
+      const updates = { content };
+      const metadataParams = metadata ? Object.fromEntries(Object.entries(metadata).map(([k, v]) => [`metadata_${k}`, String(v)])) : {};
+      
+      let setClause = 'c.content = $content, c.updated = datetime()';
+      if (metadata) {
+        const metadataUpdates = Object.entries(metadata).map(([k, v]) => `c.${k} = $metadata_${k}`).join(', ');
+        setClause += `, ${metadataUpdates}`;
+      }
+      
+      const result = await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        SET ${setClause}
+        RETURN c
+      `, { commentId, content, ...metadataParams });
+      
+      if (result.records.length === 0) {
+        throw new Error(`Comment with id ${commentId} not found`);
+      }
+
+      this.addToHistory('UPDATE_COMMENT', { commentId, content });
+      
+      return {
+        id: commentId,
+        content,
+        updated: new Date().toISOString(),
+        metadata
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async deleteComment({ commentId }) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        DETACH DELETE c
+        RETURN count(c) as deletedCount
+      `, { commentId });
+      
+      const deletedCount = result.records[0].get('deletedCount').toNumber();
+      if (deletedCount === 0) {
+        throw new Error(`Comment with id ${commentId} not found`);
+      }
+
+      this.addToHistory('DELETE_COMMENT', { commentId });
+      
+      return { success: true, id: commentId };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getComment({ commentId }) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        OPTIONAL MATCH (n)-[:HAS_COMMENT]->(c)
+        RETURN c, n.id as nodeId
+      `, { commentId });
+      
+      if (result.records.length === 0) {
+        throw new Error(`Comment with id ${commentId} not found`);
+      }
+      
+      const record = result.records[0];
+      return {
+        ...record.get('c').properties,
+        nodeId: record.get('nodeId')
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ============================================================================
   // RELATIONSHIP MANAGEMENT TOOLS
   // ============================================================================
 
@@ -1028,6 +1185,13 @@ class MCPServer {
       'get_task': this.getTask.bind(this),
       'get_tasks': this.getTasks.bind(this),
       'update_task_status': this.updateTaskStatus.bind(this),
+      
+      // Comment Management
+      'create_node_comment': this.createNodeComment.bind(this),
+      'get_node_comments': this.getNodeComments.bind(this),
+      'update_comment': this.updateComment.bind(this),
+      'delete_comment': this.deleteComment.bind(this),
+      'get_comment': this.getComment.bind(this),
       
       // Relationship Management
       'create_relationship': this.createRelationship.bind(this),
