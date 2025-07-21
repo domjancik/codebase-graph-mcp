@@ -99,3 +99,11 @@ Thumbs.db
 # Logs
 logs
 *.log
+
+# Backup files
+backups/
+BACKUP_SCRIPTS_USAGE.md
+backup-neo4j.bat
+backup-neo4j.ps1
+*.tar.gz
+*.cypher
