@@ -164,6 +164,8 @@ export DEBUG=true                # Enable debug logging
 - `TEST_CASE`: Test cases and scenarios
 
 ### Relationship Types
+
+#### Code Relationships
 - `DEPENDS_ON`: Component depends on another
 - `IMPLEMENTS`: Implements an interface
 - `EXTENDS`: Inherits from another component
@@ -174,6 +176,18 @@ export DEBUG=true                # Enable debug logging
 - `OVERRIDES`: Overrides parent functionality
 - `USES`: Uses another component
 - `CREATES`: Creates instances of another component
+
+#### Requirements & Traceability
+- `SATISFIES`: Satisfies a requirement or specification
+- `DERIVES_FROM`: Derived from another requirement
+- `REFINES`: Refines or elaborates on another component
+- `TRACES_TO`: Traces to another component for compliance
+- `VALIDATES`: Validates another component
+- `VERIFIES`: Verifies implementation of another component
+- `CONFLICTS_WITH`: Conflicts with another component
+- `SUPPORTS`: Supports or enables another component
+- `ALLOCATES_TO`: Allocates resources to another component
+- `REALIZES`: Realizes or implements a specification
 
 ### Task Status
 - `TODO`: Not started
