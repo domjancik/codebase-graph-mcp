@@ -32,10 +32,12 @@ export class GraphDatabase {
       // Create constraints and indexes
       await session.run('CREATE CONSTRAINT component_id IF NOT EXISTS FOR (c:Component) REQUIRE c.id IS UNIQUE');
       await session.run('CREATE CONSTRAINT task_id IF NOT EXISTS FOR (t:Task) REQUIRE t.id IS UNIQUE');
+      await session.run('CREATE CONSTRAINT comment_id IF NOT EXISTS FOR (c:Comment) REQUIRE c.id IS UNIQUE');
       await session.run('CREATE INDEX component_name IF NOT EXISTS FOR (c:Component) ON (c.name)');
       await session.run('CREATE INDEX component_type IF NOT EXISTS FOR (c:Component) ON (c.type)');
       await session.run('CREATE INDEX component_codebase IF NOT EXISTS FOR (c:Component) ON (c.codebase)');
       await session.run('CREATE INDEX task_status IF NOT EXISTS FOR (t:Task) ON (t.status)');
+      await session.run('CREATE INDEX comment_created IF NOT EXISTS FOR (c:Comment) ON (c.created)');
       
       // Initialize change history schema
       await this.history.initializeSchema();
@@ -463,6 +465,129 @@ export class GraphDatabase {
         type: record.get('type'),
         count: record.get('count').toNumber()
       }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  // Comment Operations
+  async createComment(commentData) {
+    const session = this.driver.session();
+    try {
+      const commentId = uuidv4();
+      const now = new Date().toISOString();
+
+      // First verify that the target node exists
+      const nodeCheck = await session.run(`
+        MATCH (n) WHERE n.id = $nodeId
+        RETURN n
+      `, { nodeId: commentData.nodeId });
+
+      if (nodeCheck.records.length === 0) {
+        throw new Error(`Node with id ${commentData.nodeId} not found`);
+      }
+
+      // Create the comment node
+      const result = await session.run(`
+        CREATE (c:Comment {
+          id: $id,
+          content: $content,
+          author: $author,
+          created: $created
+        })
+        RETURN c
+      `, {
+        id: commentId,
+        content: commentData.content,
+        author: commentData.author || 'system',
+        created: now
+      });
+
+      // Create relationship from target node to comment
+      await session.run(`
+        MATCH (n) WHERE n.id = $nodeId
+        MATCH (c:Comment {id: $commentId})
+        CREATE (n)-[:HAS_COMMENT]->(c)
+      `, { nodeId: commentData.nodeId, commentId });
+
+      const createdComment = result.records[0]?.get('c').properties;
+      return {
+        ...createdComment,
+        nodeId: commentData.nodeId
+      };
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getNodeComments(nodeId, limit = 50) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(`
+        MATCH (n)-[:HAS_COMMENT]->(c:Comment)
+        WHERE n.id = $nodeId
+        RETURN c
+        ORDER BY c.created DESC
+        LIMIT $limit
+      `, { nodeId, limit });
+
+      return result.records.map(record => record.get('c').properties);
+    } finally {
+      await session.close();
+    }
+  }
+
+  async updateComment(commentId, updates) {
+    const session = this.driver.session();
+    try {
+      const updateData = {
+        content: updates.content,
+        updated: new Date().toISOString()
+      };
+
+      const result = await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        SET c += $updates
+        RETURN c
+      `, { commentId, updates: updateData });
+
+      return result.records[0]?.get('c').properties || null;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async deleteComment(commentId) {
+    const session = this.driver.session();
+    try {
+      await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        DETACH DELETE c
+      `, { commentId });
+
+      return true;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async getComment(commentId) {
+    const session = this.driver.session();
+    try {
+      const result = await session.run(`
+        MATCH (c:Comment {id: $commentId})
+        OPTIONAL MATCH (n)-[:HAS_COMMENT]->(c)
+        RETURN c, n.id as nodeId
+      `, { commentId });
+
+      const record = result.records[0];
+      if (record) {
+        return {
+          ...record.get('c').properties,
+          nodeId: record.get('nodeId')
+        };
+      }
+      return null;
     } finally {
       await session.close();
     }

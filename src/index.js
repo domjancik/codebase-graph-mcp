@@ -206,6 +206,69 @@ class CodebaseGraphMCPServer {
           }
         },
 
+        // Comment Management
+        {
+          name: 'create_node_comment',
+          description: 'Create a comment on any node (component, task, etc.)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              nodeId: { type: 'string', description: 'ID of the node to comment on' },
+              content: { type: 'string', description: 'Comment content' },
+              author: { type: 'string', default: 'system', description: 'Author of the comment' },
+              metadata: { type: 'object', description: 'Additional metadata for the comment' }
+            },
+            required: ['nodeId', 'content']
+          }
+        },
+        {
+          name: 'get_node_comments',
+          description: 'Get all comments for a specific node',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              nodeId: { type: 'string', description: 'ID of the node to get comments for' },
+              limit: { type: 'number', default: 50, description: 'Maximum number of comments to return' }
+            },
+            required: ['nodeId']
+          }
+        },
+        {
+          name: 'update_comment',
+          description: 'Update an existing comment',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              commentId: { type: 'string', description: 'ID of the comment to update' },
+              content: { type: 'string', description: 'New comment content' },
+              metadata: { type: 'object', description: 'Updated metadata for the comment' }
+            },
+            required: ['commentId', 'content']
+          }
+        },
+        {
+          name: 'delete_comment',
+          description: 'Delete a comment by ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              commentId: { type: 'string', description: 'ID of the comment to delete' }
+            },
+            required: ['commentId']
+          }
+        },
+        {
+          name: 'get_comment',
+          description: 'Get a specific comment by ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              commentId: { type: 'string', description: 'ID of the comment to retrieve' }
+            },
+            required: ['commentId']
+          }
+        },
+
         // Analysis Tools
         {
           name: 'get_codebase_overview',
@@ -557,6 +620,17 @@ class CodebaseGraphMCPServer {
             return await this.getTasks(args);
           case 'update_task_status':
             return await this.updateTaskStatus(args);
+          // Comment management
+          case 'create_node_comment':
+            return await this.createNodeComment(args);
+          case 'get_node_comments':
+            return await this.getNodeComments(args);
+          case 'update_comment':
+            return await this.updateComment(args);
+          case 'delete_comment':
+            return await this.deleteComment(args);
+          case 'get_comment':
+            return await this.getComment(args);
           case 'get_codebase_overview':
             return await this.getCodebaseOverview(args);
           case 'get_change_history':
@@ -763,6 +837,75 @@ class CodebaseGraphMCPServer {
         {
           type: 'text',
           text: result ? `Updated task: ${JSON.stringify(result, null, 2)}` : 'Task not found'
+        }
+      ]
+    };
+  }
+
+  // Comment handlers
+  async createNodeComment(args) {
+    const result = await this.db.createComment({
+      nodeId: args.nodeId,
+      content: args.content,
+      author: args.author || 'system',
+      metadata: args.metadata
+    });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Created comment: ${JSON.stringify(result, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async getNodeComments(args) {
+    const results = await this.db.getNodeComments(args.nodeId, args.limit || 50);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Comments for node ${args.nodeId} (${results.length} found):\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async updateComment(args) {
+    const result = await this.db.updateComment(args.commentId, {
+      content: args.content,
+      metadata: args.metadata
+    });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: result ? `Updated comment: ${JSON.stringify(result, null, 2)}` : 'Comment not found'
+        }
+      ]
+    };
+  }
+
+  async deleteComment(args) {
+    await this.db.deleteComment(args.commentId);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Deleted comment: ${args.commentId}`
+        }
+      ]
+    };
+  }
+
+  async getComment(args) {
+    const result = await this.db.getComment(args.commentId);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: result ? JSON.stringify(result, null, 2) : 'Comment not found'
         }
       ]
     };
