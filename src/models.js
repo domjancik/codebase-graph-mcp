@@ -44,7 +44,7 @@ export const ProposedTypeSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   description: z.string().optional(),
-  type: z.string().enum(['NODE', 'RELATIONSHIP']),
+  type: z.enum(['NODE', 'RELATIONSHIP']),
   status: z.nativeEnum(ProposedTypeStatus).default('PENDING'),
   votes: z.number().min(0).default(0),
   createdBy: z.string(),
@@ -58,7 +58,7 @@ export const VoteSchema = z.object({
   id: z.string().uuid(),
   proposedTypeId: z.string().uuid(),
   voterId: z.string(),
-  voteType: z.string().enum(['APPROVE', 'REJECT']),
+  voteType: z.enum(['APPROVE', 'REJECT']),
   reason: z.string().optional(),
   votedAt: z.string().datetime()
 });
