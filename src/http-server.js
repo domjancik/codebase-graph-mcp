@@ -67,12 +67,19 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     // SSE Event Stream endpoint
     this.app.get('/events', this.handleSSEConnection.bind(this));
     
-    // Component API endpoints
+    // Component API endpoints (with /api prefix)
     this.app.get('/api/components', this.handleGetComponents.bind(this));
     this.app.get('/api/components/:id', this.handleGetComponent.bind(this));
     this.app.post('/api/components', this.handleCreateComponent.bind(this));
     this.app.put('/api/components/:id', this.handleUpdateComponent.bind(this));
     this.app.delete('/api/components/:id', this.handleDeleteComponent.bind(this));
+    
+    // Component API endpoints (backward compatibility - no /api prefix)
+    this.app.get('/components', this.handleGetComponents.bind(this));
+    this.app.get('/components/:id', this.handleGetComponent.bind(this));
+    this.app.post('/components', this.handleCreateComponent.bind(this));
+    this.app.put('/components/:id', this.handleUpdateComponent.bind(this));
+    this.app.delete('/components/:id', this.handleDeleteComponent.bind(this));
     
     // Relationships API endpoints
     this.app.get('/api/components/:id/relationships', this.handleGetComponentRelationships.bind(this));

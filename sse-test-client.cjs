@@ -62,12 +62,52 @@ setTimeout(async () => {
 setTimeout(async () => {
   try {
     const componentsResponse = await fetch(`${API_BASE}/components`);
-    const components = await componentsResponse.json();
-    console.log('✅ Components fetched:', components.length, 'items');
+    const response = await componentsResponse.json();
+    if (response.success) {
+      console.log('✅ Components fetched:', response.data.length, 'items');
+      console.log('   📦 Sample component:', response.data[0]?.name || 'No components found');
+    } else {
+      console.log('❌ Components fetch returned error:', response.error);
+    }
   } catch (error) {
     console.error('❌ Components fetch failed:', error.message);
   }
 }, 3000);
+
+// Test 4: Get Tasks
+setTimeout(async () => {
+  try {
+    const tasksResponse = await fetch(`${API_BASE}/api/tasks`);
+    const response = await tasksResponse.json();
+    if (response.success) {
+      console.log('✅ Tasks fetched:', response.data.length, 'items');
+    } else {
+      console.log('❌ Tasks fetch returned error:', response.error);
+    }
+  } catch (error) {
+    console.error('❌ Tasks fetch failed:', error.message);
+  }
+}, 4000);
+
+// Test 5: Test both /components and /api/components paths
+setTimeout(async () => {
+  try {
+    console.log('\n=== Testing Path Consistency ===');
+    const [directPath, apiPath] = await Promise.all([
+      fetch(`${API_BASE}/components`).then(r => r.json()),
+      fetch(`${API_BASE}/api/components`).then(r => r.json())
+    ]);
+    
+    console.log('✅ Direct /components:', directPath.success ? `${directPath.data.length} items` : 'Failed');
+    console.log('✅ API /api/components:', apiPath.success ? `${apiPath.data.length} items` : 'Failed');
+    
+    if (directPath.success && apiPath.success) {
+      console.log('   🔗 Both paths return same data:', directPath.data.length === apiPath.data.length ? 'Yes' : 'No');
+    }
+  } catch (error) {
+    console.error('❌ Path consistency test failed:', error.message);
+  }
+}, 5000);
 
 // Cleanup after 35 seconds (enough to see heartbeats)
 setTimeout(() => {
