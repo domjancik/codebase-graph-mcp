@@ -13,7 +13,7 @@ import { ComponentType, RelationshipType, TaskStatus, ProposedType, Vote } from 
 import { globalCommandQueue } from './command-queue.js';
 import { CodebaseGraphHTTPServer } from './http-server.js';
 
-class CodebaseGraphMCPServer {
+export class CodebaseGraphMCPServer {
   constructor() {
     this.server = new Server(
       {
