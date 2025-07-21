@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "start:http": "HTTP_ONLY=true node src/index.js",
     "dev": "node --watch src/index.js",
     "setup-db": "node scripts/setup-db.js",
     "test": "node --test test/*.test.js",
@@ -13,7 +14,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
+    "cors": "^2.8.5",
+    "eventsource": "^4.0.0",
+    "express": "^4.18.2",
     "neo4j-driver": "^5.15.0",
+    "node-fetch": "^2.7.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },
