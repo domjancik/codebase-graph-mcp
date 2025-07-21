@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "start:mcp-only": "node src/mcp-only.js",
     "start:http": "HTTP_ONLY=true node src/index.js",
     "dev": "node --watch src/index.js",
     "setup-db": "node scripts/setup-db.js",

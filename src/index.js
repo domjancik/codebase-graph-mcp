@@ -1149,6 +1149,8 @@ class CodebaseGraphMCPServer {
         } catch (error) {
           console.error('Failed to start HTTP server:', error.message);
           console.error('Continuing with MCP server only...');
+          // Don't let HTTP server failures kill the MCP server
+          this.httpServer = null;
         }
       }
     } catch (error) {

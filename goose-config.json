@@ -1,0 +1,15 @@
+{
+  "providers": {
+    "openai": {
+      "type": "openai",
+      "api_key": "your-openai-api-key"
+    }
+  },
+  "mcp": {
+    "codebasegraph": {
+      "command": "node",
+      "args": ["src/mcp-only.js"],
+      "cwd": "/Users/dominikjancik/dev/mcp/codebase-graph-mcp"
+    }
+  }
+}

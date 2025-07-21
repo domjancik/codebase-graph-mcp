@@ -464,6 +464,13 @@ To reset the database:
 3. **MCP Connection Issues**
    - Verify stdio transport setup
    - Check MCP client configuration
+   - For port conflicts with HTTP server, use MCP-only mode: `node src/mcp-only.js`
+
+4. **"Child process ended (EOF on stdout)" Error**
+   - This usually indicates the server process crashed during startup
+   - Check if another process is using port 3000 (`lsof -i :3000`)
+   - Use the MCP-only entry point to avoid HTTP server conflicts
+   - For Goose: Update config to use `src/mcp-only.js` instead of `src/index.js`
 
 ### Logs
 Server logs are written to stderr and include:
