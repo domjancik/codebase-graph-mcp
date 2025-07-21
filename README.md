@@ -138,6 +138,40 @@ export NEO4J_PASSWORD=your_password
 ### Analysis Tools
 - `get_codebase_overview`: Get statistics for a codebase
 
+## CLI Queue Waiter Tools
+
+For terminal-enabled agents, the system provides CLI-based queue waiters that don't require MCP client integration:
+
+### Start a CLI Queue Waiter
+```bash
+# Wait indefinitely with auto-generated ID
+node examples/cli-queue-waiter.js
+
+# Wait with custom session name
+node examples/cli-queue-waiter.js my-analysis-agent
+node examples/cli-queue-waiter.js build-agent-1
+```
+
+### Monitor Agent Capacity
+```bash
+# Show current waiting agents and capacity
+node examples/list-agents.js
+
+# Continuous monitoring (refreshes every 5 seconds)
+node examples/list-agents.js --watch
+
+# JSON output for programmatic use
+node examples/list-agents.js --json
+```
+
+### CLI Queue Waiter Features
+- **Indefinite waiting**: Runs until manually canceled (Ctrl+C)
+- **Named sessions**: Custom agent IDs for identification
+- **Capacity reporting**: Automatically reports availability to the system
+- **Status updates**: Real-time uptime and command processing stats
+- **Graceful shutdown**: Clean session termination with statistics
+- **Auto-reconnection**: Automatically re-registers after processing commands
+
 ## Example Usage
 
 ### Creating Components
