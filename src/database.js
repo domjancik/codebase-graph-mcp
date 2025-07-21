@@ -298,6 +298,134 @@ export class GraphDatabase {
     }
   }
 
+  // Bulk Operations
+  async createComponents(componentsData, metadata = {}) {
+    const session = this.driver.session();
+    const tx = session.beginTransaction();
+    const createdComponents = [];
+    
+    try {
+      for (const componentData of componentsData) {
+        const component = new Component({ ...componentData, id: componentData.id || uuidv4() });
+        
+        const result = await tx.run(`
+          CREATE (c:Component:${component.type})
+          SET c = $properties
+          RETURN c
+        `, { properties: component.toNode().properties });
+        
+        const createdComponent = result.records[0]?.get('c').properties;
+        if (createdComponent) {
+          createdComponents.push(createdComponent);
+        }
+      }
+      
+      await tx.commit();
+      
+      // Record change history for all created components
+      for (const component of createdComponents) {
+        await this.history.recordChange(
+          'CREATE_COMPONENT_BULK',
+          'COMPONENT',
+          component.id,
+          null,
+          component,
+          { ...metadata, bulkOperation: true, totalCount: createdComponents.length }
+        );
+      }
+      
+      return createdComponents;
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async createRelationships(relationshipsData) {
+    const session = this.driver.session();
+    const tx = session.beginTransaction();
+    const createdRelationships = [];
+    
+    try {
+      for (const relationshipData of relationshipsData) {
+        const relationship = new Relationship({ ...relationshipData, id: relationshipData.id || uuidv4() });
+        
+        const result = await tx.run(`
+          MATCH (source:Component {id: $sourceId})
+          MATCH (target:Component {id: $targetId})
+          CREATE (source)-[r:${relationship.type}]->(target)
+          SET r = $properties
+          RETURN r, source.name as sourceName, target.name as targetName
+        `, { 
+          sourceId: relationship.sourceId, 
+          targetId: relationship.targetId,
+          properties: relationship.toRelation().properties
+        });
+        
+        const record = result.records[0];
+        if (record) {
+          const createdRelationship = {
+            ...record.get('r').properties,
+            sourceName: record.get('sourceName'),
+            targetName: record.get('targetName')
+          };
+          createdRelationships.push(createdRelationship);
+        }
+      }
+      
+      await tx.commit();
+      return createdRelationships;
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
+  async createTasks(tasksData) {
+    const session = this.driver.session();
+    const tx = session.beginTransaction();
+    const createdTasks = [];
+    
+    try {
+      for (const taskData of tasksData) {
+        const task = new Task({ ...taskData, id: taskData.id || uuidv4() });
+        
+        const result = await tx.run(`
+          CREATE (t:Task)
+          SET t = $properties
+          RETURN t
+        `, { properties: task.toNode().properties });
+        
+        const createdTask = result.records[0]?.get('t').properties;
+        if (createdTask) {
+          // Link to related components if any
+          if (task.relatedComponentIds.length > 0) {
+            await tx.run(`
+              MATCH (t:Task {id: $taskId})
+              MATCH (c:Component)
+              WHERE c.id IN $componentIds
+              CREATE (t)-[:RELATES_TO]->(c)
+            `, { taskId: task.id, componentIds: task.relatedComponentIds });
+          }
+          
+          createdTasks.push(createdTask);
+        }
+      }
+      
+      await tx.commit();
+      return createdTasks;
+    } catch (error) {
+      await tx.rollback();
+      throw error;
+    } finally {
+      await session.close();
+    }
+  }
+
   // Analysis Operations
   async getDependencyTree(componentId, maxDepth = 3) {
     const session = this.driver.session();

@@ -285,6 +285,81 @@ class CodebaseGraphMCPServer {
           }
         },
 
+        // Bulk Operations
+        {
+          name: 'create_components_bulk',
+          description: 'Create multiple components in a single operation (preferred for 2+ components)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              components: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', enum: Object.values(ComponentType) },
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    path: { type: 'string' },
+                    codebase: { type: 'string' },
+                    metadata: { type: 'object' }
+                  },
+                  required: ['type', 'name']
+                }
+              }
+            },
+            required: ['components']
+          }
+        },
+        {
+          name: 'create_relationships_bulk',
+          description: 'Create multiple relationships in a single operation (preferred for 2+ relationships)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              relationships: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    type: { type: 'string', enum: Object.values(RelationshipType) },
+                    sourceId: { type: 'string' },
+                    targetId: { type: 'string' },
+                    details: { type: 'object' }
+                  },
+                  required: ['type', 'sourceId', 'targetId']
+                }
+              }
+            },
+            required: ['relationships']
+          }
+        },
+        {
+          name: 'create_tasks_bulk',
+          description: 'Create multiple tasks in a single operation (preferred for 2+ tasks)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              tasks: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    status: { type: 'string', enum: Object.values(TaskStatus), default: 'TODO' },
+                    progress: { type: 'number', minimum: 0, maximum: 1, default: 0 },
+                    relatedComponentIds: { type: 'array', items: { type: 'string' } },
+                    metadata: { type: 'object' }
+                  },
+                  required: ['name']
+                }
+              }
+            },
+            required: ['tasks']
+          }
+        },
+
         // Command Queue Tools
         {
           name: 'wait_for_command',
@@ -510,6 +585,13 @@ class CodebaseGraphMCPServer {
             return await this.cancelWait(args);
           case 'get_command_history':
             return await this.getCommandHistory(args);
+          // Bulk operations
+          case 'create_components_bulk':
+            return await this.createComponentsBulk(args);
+          case 'create_relationships_bulk':
+            return await this.createRelationshipsBulk(args);
+          case 'create_tasks_bulk':
+            return await this.createTasksBulk(args);
           // Voting system tools (conditionally handled)
           case 'propose_type':
             if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
@@ -772,6 +854,43 @@ class CodebaseGraphMCPServer {
         {
           type: 'text',
           text: `History statistics:\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  // Bulk operation handlers
+  async createComponentsBulk(args) {
+    const results = await this.db.createComponents(args.components);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Created ${results.length} components in bulk:\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async createRelationshipsBulk(args) {
+    const results = await this.db.createRelationships(args.relationships);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Created ${results.length} relationships in bulk:\n${JSON.stringify(results, null, 2)}`
+        }
+      ]
+    };
+  }
+
+  async createTasksBulk(args) {
+    const results = await this.db.createTasks(args.tasks);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Created ${results.length} tasks in bulk:\n${JSON.stringify(results, null, 2)}`
         }
       ]
     };

@@ -85,6 +85,11 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     this.app.get('/api/components/:id/relationships', this.handleGetComponentRelationships.bind(this));
     this.app.post('/api/relationships', this.handleCreateRelationship.bind(this));
     
+    // Bulk operations endpoints
+    this.app.post('/api/components/bulk', this.handleCreateBulkComponents.bind(this));
+    this.app.post('/api/relationships/bulk', this.handleCreateBulkRelationships.bind(this));
+    this.app.post('/api/tasks/bulk', this.handleCreateBulkTasks.bind(this));
+    
     // Task API endpoints
     this.app.get('/api/tasks', this.handleGetTasks.bind(this));
     this.app.get('/api/tasks/:id', this.handleGetTask.bind(this));
@@ -193,7 +198,9 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
             version: '1.0.0',
             supportedEvents: [
               'component-created', 'component-updated', 'component-deleted',
-              'task-created', 'task-updated', 
+              'components-bulk-created',
+              'relationship-created', 'relationships-bulk-created',
+              'task-created', 'task-updated', 'tasks-bulk-created',
               'command-queued', 'command-delivered',
               'agent-waiting', 'agent-stopped-waiting'
             ]
@@ -482,6 +489,94 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     }
   }
 
+  // Bulk operation handlers
+  async handleCreateBulkComponents(req, res) {
+    try {
+      const { components } = req.body;
+      if (!Array.isArray(components) || components.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Request body must contain a non-empty array of components' 
+        });
+      }
+
+      const createdComponents = await this.createComponents(components);
+      
+      // Broadcast bulk creation event
+      this.broadcastSSE('components-bulk-created', {
+        components: createdComponents,
+        count: createdComponents.length
+      });
+      
+      res.status(201).json({ 
+        success: true, 
+        data: createdComponents,
+        count: createdComponents.length,
+        message: `Successfully created ${createdComponents.length} components` 
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async handleCreateBulkRelationships(req, res) {
+    try {
+      const { relationships } = req.body;
+      if (!Array.isArray(relationships) || relationships.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Request body must contain a non-empty array of relationships' 
+        });
+      }
+
+      const createdRelationships = await this.createRelationships(relationships);
+      
+      // Broadcast bulk creation event
+      this.broadcastSSE('relationships-bulk-created', {
+        relationships: createdRelationships,
+        count: createdRelationships.length
+      });
+      
+      res.status(201).json({ 
+        success: true, 
+        data: createdRelationships,
+        count: createdRelationships.length,
+        message: `Successfully created ${createdRelationships.length} relationships` 
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async handleCreateBulkTasks(req, res) {
+    try {
+      const { tasks } = req.body;
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Request body must contain a non-empty array of tasks' 
+        });
+      }
+
+      const createdTasks = await this.createTasks(tasks);
+      
+      // Broadcast bulk creation event
+      this.broadcastSSE('tasks-bulk-created', {
+        tasks: createdTasks,
+        count: createdTasks.length
+      });
+      
+      res.status(201).json({ 
+        success: true, 
+        data: createdTasks,
+        count: createdTasks.length,
+        message: `Successfully created ${createdTasks.length} tasks` 
+      });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async handleUpdateTask(req, res) {
     try {
       const task = await this.updateTask({ 
@@ -568,6 +663,19 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
 
   async getDependencyTree(args) {
     return await this.db.getDependencyTree(args.componentId, args.maxDepth || 3);
+  }
+
+  // Bulk operation delegates
+  async createComponents(components) {
+    return await this.db.createComponents(components);
+  }
+
+  async createRelationships(relationships) {
+    return await this.db.createRelationships(relationships);
+  }
+
+  async createTasks(tasks) {
+    return await this.db.createTasks(tasks);
   }
 
   async start() {
