@@ -1,13 +1,19 @@
 # Codebase Graph MCP Server
 
-A Model Context Protocol (MCP) server that provides a graph database for tracking software codebase components, their relationships, and associated tasks/goals. Built with Neo4j for powerful graph queries and analysis.
+A comprehensive Model Context Protocol (MCP) server that provides a graph database for tracking software codebase components, their relationships, and associated tasks/goals. Built with Neo4j for powerful graph queries and analysis, featuring both STDIO MCP and HTTP/SSE interfaces.
 
 ## Features
 
+- **Dual Interface Support**: Both STDIO MCP and HTTP/SSE interfaces
 - **Component Management**: Track files, functions, classes, modules, and systems
 - **Relationship Mapping**: Model dependencies, inheritance, imports, and other relationships
 - **Task Integration**: Link tasks and goals directly to codebase components
+- **Bulk Operations**: Efficient bulk creation of components, relationships, and tasks
 - **Multi-level Abstraction**: Support analysis at any level from individual functions to entire systems
+- **Real-time Events**: Server-Sent Events (SSE) for live updates
+- **Change History**: Complete audit trail with snapshots and replay capabilities
+- **Command Queue**: Agent coordination and external integration system
+- **Voting System**: Community-driven type proposal and approval system
 - **MCP Compatible**: Works with any MCP-compatible AI agent or tool
 
 ## Prerequisites
@@ -40,6 +46,36 @@ npm run setup-db
 ```bash
 npm start
 ```
+
+## Server Modes
+
+The server supports multiple operation modes:
+
+### 1. Default Mode (STDIO + HTTP)
+```bash
+npm start
+# or
+node src/index.js
+```
+- Runs both STDIO MCP server and HTTP/SSE server
+- Default HTTP port: 3000
+- Suitable for development and full-featured access
+
+### 2. HTTP-Only Mode
+```bash
+HTTP_ONLY=true HTTP_PORT=3001 npm run start:http
+```
+- Runs only the HTTP server with SSE support
+- No STDIO MCP interface
+- Ideal for web integrations and external tools
+
+### 3. STDIO-Only Mode
+```bash
+ENABLE_HTTP=false npm start
+```
+- Runs only the STDIO MCP server
+- No HTTP interface
+- Minimal resource usage for MCP-only scenarios
 
 ## Configuration
 
@@ -77,11 +113,32 @@ const db = new GraphDatabase(
 ```
 
 ### Environment Variables
-You can also use environment variables:
+
+#### Database Configuration
 ```bash
 export NEO4J_URI=bolt://localhost:7687
 export NEO4J_USERNAME=neo4j  
 export NEO4J_PASSWORD=your_password
+```
+
+#### Server Configuration
+```bash
+# HTTP Server Settings
+export ENABLE_HTTP=true          # Enable/disable HTTP server (default: true)
+export HTTP_ONLY=false           # HTTP-only mode, disable STDIO (default: false)
+export HTTP_PORT=3000            # HTTP server port (default: 3000)
+export HTTP_HOST=localhost       # HTTP server host (default: localhost)
+export CORS_ORIGIN=*             # CORS origin setting (default: *)
+
+# Feature Toggles
+export ENABLE_VOTING=false       # Enable voting system (default: false)
+export ENABLE_AUTH=false         # Enable authentication (default: false)
+```
+
+#### Development Settings
+```bash
+export NODE_ENV=development      # Environment mode
+export DEBUG=true                # Enable debug logging
 ```
 
 ## Usage
@@ -124,6 +181,11 @@ export NEO4J_PASSWORD=your_password
 - `update_component`: Update component properties
 - `delete_component`: Delete a component
 
+### Bulk Operations (⭐ Preferred for 2+ Items)
+- `create_components_bulk`: Create multiple components efficiently
+- `create_relationships_bulk`: Create multiple relationships efficiently
+- `create_tasks_bulk`: Create multiple tasks efficiently
+
 ### Relationship Management
 - `create_relationship`: Create relationship between components
 - `get_component_relationships`: Get all relationships for a component
@@ -134,6 +196,31 @@ export NEO4J_PASSWORD=your_password
 - `get_task`: Get task by ID
 - `get_tasks`: Get all tasks (optional status filter)
 - `update_task_status`: Update task status and progress
+
+### Change History & Snapshots
+- `get_change_history`: Get change history for entities or recent changes
+- `create_snapshot`: Create a snapshot of current database state
+- `list_snapshots`: List all available snapshots
+- `restore_snapshot`: Restore database from a snapshot
+- `replay_to_timestamp`: Replay changes to recreate state at specific time
+- `get_history_stats`: Get statistics about change history
+
+### Command Queue System
+- `wait_for_command`: Wait for commands from external systems
+- `send_command`: Send commands to waiting agents
+- `get_waiting_agents`: Get status of agents waiting for commands
+- `get_pending_commands`: Get queued but undelivered commands
+- `cancel_command`: Cancel a pending command
+- `cancel_wait`: Cancel an agent's wait for commands
+- `get_command_history`: Get command queue execution history
+
+### Voting System (Optional)
+- `propose_type`: Propose new component or relationship types
+- `vote_on_type`: Vote on proposed types
+- `get_proposed_types`: Get all proposed types with status filter
+- `get_proposed_type`: Get details of specific proposed type
+- `apply_approved_type`: Apply approved types to the system
+- `get_voting_stats`: Get voting system statistics
 
 ### Analysis Tools
 - `get_codebase_overview`: Get statistics for a codebase
@@ -172,7 +259,57 @@ node examples/list-agents.js --json
 - **Graceful shutdown**: Clean session termination with statistics
 - **Auto-reconnection**: Automatically re-registers after processing commands
 
+## HTTP/SSE API
+
+The server also provides an HTTP REST API with Server-Sent Events for real-time updates:
+
+### HTTP Endpoints
+- **Components**: `GET|POST|PUT|DELETE /api/components[/:id]`
+- **Relationships**: `GET|POST /api/relationships` 
+- **Tasks**: `GET|POST|PUT /api/tasks[/:id]`
+- **Bulk Operations**: `POST /api/{components|relationships|tasks}/bulk`
+- **Analysis**: `GET /api/codebase/:name/overview`
+- **Change History**: `GET /api/history`
+- **Command Queue**: `GET|POST|DELETE /api/commands`
+
+### Server-Sent Events
+- **Connection**: `GET /events`
+- **Events**: `component-created`, `component-updated`, `task-created`, etc.
+- **Bulk Events**: `components-bulk-created`, `relationships-bulk-created`, etc.
+- **Real-time Updates**: Live notifications of all database changes
+
+### Testing HTTP API
+```bash
+# Test bulk operations
+node test-bulk-operations.js
+
+# Test SSE connection
+node test-sse-client.js
+```
+
 ## Example Usage
+
+### Bulk Operations (Recommended)
+```javascript
+// Create multiple components efficiently
+const components = [
+  {
+    type: 'FILE',
+    name: 'UserService.ts',
+    codebase: 'my-app',
+    description: 'User management service'
+  },
+  {
+    type: 'CLASS', 
+    name: 'UserService',
+    codebase: 'my-app',
+    description: 'Main user service class'
+  }
+];
+
+const result = await createComponentsBulk({ components });
+console.log(`Created ${result.length} components`);
+```
 
 ### Creating Components
 ```javascript
