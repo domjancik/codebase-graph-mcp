@@ -27,13 +27,19 @@ class CodebaseGraphMCPServer {
     );
 
     this.db = new GraphDatabase();
+    
+    // Configuration - voting system is disabled by default
+    this.config = {
+      enableVoting: process.env.ENABLE_VOTING === 'true' || false
+    };
+    
     this.setupHandlers();
     this.proposedTypes = new Set();
   }
 
   setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const coreTools = [
         // Component Management
         {
           name: 'create_component',
@@ -353,9 +359,11 @@ class CodebaseGraphMCPServer {
               limit: { type: 'number', default: 100 }
             }
           }
-        },
-
-        // Type Proposal and Voting Tools
+        }
+      ];
+      
+      // Conditionally add voting tools if enabled
+      const votingTools = this.config.enableVoting ? [
         {
           name: 'propose_type',
           description: 'Propose a new node or relationship type for community voting',
@@ -428,8 +436,12 @@ class CodebaseGraphMCPServer {
             properties: {}
           }
         }
-      ]
-    }));
+      ] : [];
+      
+      return {
+        tools: [...coreTools, ...votingTools]
+      };
+    });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
@@ -488,17 +500,24 @@ class CodebaseGraphMCPServer {
             return await this.cancelWait(args);
           case 'get_command_history':
             return await this.getCommandHistory(args);
+          // Voting system tools (conditionally handled)
           case 'propose_type':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.proposeType(args);
           case 'vote_on_type':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.voteOnType(args);
           case 'get_proposed_types':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.getProposedTypes(args);
           case 'get_proposed_type':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.getProposedType(args);
           case 'apply_approved_type':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.applyApprovedType(args);
           case 'get_voting_stats':
+            if (!this.config.enableVoting) throw new McpError(ErrorCode.MethodNotFound, 'Voting system is disabled');
             return await this.getVotingStats(args);
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
