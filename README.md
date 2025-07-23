@@ -4,16 +4,19 @@ A comprehensive Model Context Protocol (MCP) server that provides a graph databa
 
 ## Features
 
-- **Dual Interface Support**: Both STDIO MCP and HTTP/SSE interfaces
-- **Component Management**: Track files, functions, classes, modules, and systems
-- **Relationship Mapping**: Model dependencies, inheritance, imports, and other relationships
-- **Task Integration**: Link tasks and goals directly to codebase components
+- **Dual Interface Support**: Both STDIO MCP and HTTP/SSE interfaces for maximum flexibility
+- **Component Management**: Track files, functions, classes, modules, and systems with metadata support
+- **Relationship Mapping**: Model dependencies, inheritance, imports, and other relationships between components
+- **Task Integration**: Link tasks and goals directly to codebase components with progress tracking
 - **Bulk Operations**: Efficient bulk creation of components, relationships, and tasks
 - **Multi-level Abstraction**: Support analysis at any level from individual functions to entire systems
-- **Real-time Events**: Server-Sent Events (SSE) for live updates
-- **Change History**: Complete audit trail with snapshots and replay capabilities
-- **Command Queue**: Agent coordination and external integration system
-- **Voting System**: Community-driven type proposal and approval system
+- **Real-time Events**: Server-Sent Events (SSE) for live updates and notifications
+- **Change History**: Complete audit trail of all modifications with timestamp tracking
+- **Snapshot System**: Create and restore database snapshots for backup and rollback capabilities
+- **Command Queue**: Inter-agent communication system for coordinating work between multiple AI agents
+- **Voting System**: Community-driven type proposals for extending the schema (optional)
+- **CLI Tools**: Terminal-based queue waiters for non-MCP agent integration
+- **Flexible Configuration**: Support for multiple databases, remote connections, and SSL
 - **MCP Compatible**: Works with any MCP-compatible AI agent or tool
 
 ## Prerequisites
@@ -80,8 +83,9 @@ ENABLE_HTTP=false npm start
 ## Configuration
 
 ### MCP Client Configuration
-To connect an MCP client (like Claude Desktop) to this server, use this configuration:
+To connect an MCP client (like Claude Desktop) to this server, use one of these configurations:
 
+#### Basic Configuration
 ```json
 {
   "mcpServers": {
@@ -94,51 +98,166 @@ To connect an MCP client (like Claude Desktop) to this server, use this configur
 }
 ```
 
+#### Configuration with Custom Neo4j Settings
+```json
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "your-secure-password"
+      }
+    }
+  }
+}
+```
+
+#### Configuration with Voting System Enabled
+```json
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "password",
+        "ENABLE_VOTING": "true"
+      }
+    }
+  }
+}
+```
+
+#### Remote Neo4j Configuration
+```json
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://your-neo4j-host:7687",
+        "NEO4J_USERNAME": "your-username",
+        "NEO4J_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+#### Production Configuration with SSL
+```json
+{
+  "mcpServers": {
+    "codebase-graph": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "/path/to/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt+s://production-neo4j:7687",
+        "NEO4J_USERNAME": "production-user",
+        "NEO4J_PASSWORD": "secure-production-password",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+#### Multiple Database Instances
+```json
+{
+  "mcpServers": {
+    "codebase-graph-main": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "password"
+      }
+    },
+    "codebase-graph-staging": {
+      "command": "node",
+      "args": ["src/index.js"],
+      "cwd": "C:/Users/magne/codebase-graph-mcp",
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7688",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "staging-password"
+      }
+    }
+  }
+}
+```
+
 **For Claude Desktop:**
-1. Copy the configuration from `claude-desktop-config.json`
+1. Copy one of the configurations above
 2. Add it to your Claude Desktop MCP settings
 3. Restart Claude Desktop
 4. The codebase-graph tools will be available
 
-**Alternative configurations** are available in `config-examples.json` for different setups (remote Neo4j, custom credentials, etc.).
-
-### Database Connection
-Edit the database connection in `src/database.js` if needed:
-```javascript
-const db = new GraphDatabase(
-  'bolt://localhost:7687',  // Neo4j URI
-  'neo4j',                  // Username
-  'password'                // Password
-);
-```
+**Configuration Files:**
+- `claude-desktop-config.json` - Basic configuration for Claude Desktop
+- `mcp-config.json` - Configuration with environment variables
+- `config-examples.json` - Complete examples for different setups
 
 ### Environment Variables
 
-#### Database Configuration
-```bash
-export NEO4J_URI=bolt://localhost:7687
-export NEO4J_USERNAME=neo4j  
-export NEO4J_PASSWORD=your_password
-```
+#### Database Connection
+- `NEO4J_URI` - Neo4j connection URI (default: `bolt://localhost:7687`)
+- `NEO4J_USERNAME` - Neo4j username (default: `neo4j`)
+- `NEO4J_PASSWORD` - Neo4j password (default: `password`)
 
 #### Server Configuration
-```bash
-# HTTP Server Settings
-export ENABLE_HTTP=true          # Enable/disable HTTP server (default: true)
-export HTTP_ONLY=false           # HTTP-only mode, disable STDIO (default: false)
-export HTTP_PORT=3000            # HTTP server port (default: 3000)
-export HTTP_HOST=localhost       # HTTP server host (default: localhost)
-export CORS_ORIGIN=*             # CORS origin setting (default: *)
+- `ENABLE_HTTP` - Enable/disable HTTP server (default: `true`)
+- `HTTP_ONLY` - HTTP-only mode, disable STDIO (default: `false`)
+- `HTTP_PORT` - HTTP server port (default: `3000`)
+- `HTTP_HOST` - HTTP server host (default: `localhost`)
+- `CORS_ORIGIN` - CORS origin setting (default: `*`)
 
-# Feature Toggles
-export ENABLE_VOTING=false       # Enable voting system (default: false)
-export ENABLE_AUTH=false         # Enable authentication (default: false)
-```
+#### Feature Flags
+- `ENABLE_VOTING` - Enable voting system for community-driven type proposals (default: `false`)
+- `ENABLE_AUTH` - Enable authentication (default: `false`)
+- `NODE_ENV` - Environment mode (`development`, `production`)
+- `DEBUG` - Enable debug logging (default: `false`)
 
-#### Development Settings
+#### Usage Examples
 ```bash
-export NODE_ENV=development      # Environment mode
-export DEBUG=true                # Enable debug logging
+# Local development with custom credentials
+export NEO4J_URI=bolt://localhost:7687
+export NEO4J_USERNAME=neo4j
+export NEO4J_PASSWORD=your_password
+npm start
+
+# Enable voting system
+export ENABLE_VOTING=true
+npm start
+
+# Production setup with SSL
+export NEO4J_URI=bolt+s://production-host:7687
+export NEO4J_USERNAME=prod_user
+export NEO4J_PASSWORD=secure_password
+export NODE_ENV=production
+npm start
+
+# HTTP-only mode
+export HTTP_ONLY=true
+export HTTP_PORT=3001
+npm run start:http
+
+# STDIO-only mode (minimal resource usage)
+export ENABLE_HTTP=false
+npm start
 ```
 
 ## Usage
@@ -199,11 +318,11 @@ export DEBUG=true                # Enable debug logging
 ## MCP Tools
 
 ### Component Management
-- `create_component`: Create a new component
+- `create_component`: Create a new component with type, name, description, path, codebase, and metadata
 - `get_component`: Retrieve component by ID
-- `search_components`: Search with filters
+- `search_components`: Search components with filters (type, name, codebase)
 - `update_component`: Update component properties
-- `delete_component`: Delete a component
+- `delete_component`: Delete a component and its relationships
 
 ### Bulk Operations (⭐ Preferred for 2+ Items)
 - `create_components_bulk`: Create multiple components efficiently
@@ -211,15 +330,15 @@ export DEBUG=true                # Enable debug logging
 - `create_tasks_bulk`: Create multiple tasks efficiently
 
 ### Relationship Management
-- `create_relationship`: Create relationship between components
-- `get_component_relationships`: Get all relationships for a component
-- `get_dependency_tree`: Get dependency tree (supports max depth)
+- `create_relationship`: Create relationship between components with optional details
+- `get_component_relationships`: Get all relationships for a component (incoming, outgoing, or both)
+- `get_dependency_tree`: Get dependency tree with configurable maximum depth
 
 ### Task Management
-- `create_task`: Create a new task
-- `get_task`: Get task by ID
-- `get_tasks`: Get all tasks (optional status filter)
-- `update_task_status`: Update task status and progress
+- `create_task`: Create a new task with name, description, status, progress, and related components
+- `get_task`: Get task by ID with full details
+- `get_tasks`: Get all tasks with optional status filtering
+- `update_task_status`: Update task status and progress percentage
 
 ### Change History & Snapshots
 - `get_change_history`: Get change history for entities or recent changes
@@ -247,7 +366,7 @@ export DEBUG=true                # Enable debug logging
 - `get_voting_stats`: Get voting system statistics
 
 ### Analysis Tools
-- `get_codebase_overview`: Get statistics for a codebase
+- `get_codebase_overview`: Get comprehensive statistics for a codebase
 
 ## CLI Queue Waiter Tools
 
