@@ -223,11 +223,21 @@ export class GraphDatabase {
     const session = this.driver.session();
     
     try {
+      const nodeData = task.toNode();
+      const { created, ...otherProperties } = nodeData.properties;
+      
       const result = await session.run(`
-        CREATE (t:Task)
-        SET t = $properties
+        CREATE (t:Task {
+          id: $id,
+          name: $name,
+          description: $description,
+          status: $status,
+          progress: $progress,
+          codebase: $codebase,
+          created: datetime()
+        })
         RETURN t
-      `, { properties: task.toNode().properties });
+      `, otherProperties);
       
       // Link to related components if any
       if (task.relatedComponentIds.length > 0) {
@@ -258,16 +268,11 @@ export class GraphDatabase {
     
     const session = this.driver.session();
     try {
-      const updates = { status };
-      if (progress !== null) {
-        updates.progress = progress;
-      }
-
       const result = await session.run(`
         MATCH (t:Task {id: $id})
-        SET t += $updates
+        SET t.status = $status${progress !== null ? ', t.progress = $progress' : ''}, t.updated = datetime()
         RETURN t
-      `, { id, updates });
+      `, { id, status, progress });
       
       return result.records[0]?.get('t').properties || null;
     } finally {
