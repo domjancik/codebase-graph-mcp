@@ -165,6 +165,7 @@ export class CodebaseGraphMCPServer {
               description: { type: 'string' },
               status: { type: 'string', enum: Object.values(TaskStatus), default: 'TODO' },
               progress: { type: 'number', minimum: 0, maximum: 1, default: 0 },
+              codebase: { type: 'string' },
               relatedComponentIds: { type: 'array', items: { type: 'string' } },
               metadata: { type: 'object' }
             },
@@ -412,6 +413,7 @@ export class CodebaseGraphMCPServer {
                     description: { type: 'string' },
                     status: { type: 'string', enum: Object.values(TaskStatus), default: 'TODO' },
                     progress: { type: 'number', minimum: 0, maximum: 1, default: 0 },
+                    codebase: { type: 'string' },
                     relatedComponentIds: { type: 'array', items: { type: 'string' } },
                     metadata: { type: 'object' }
                   },
