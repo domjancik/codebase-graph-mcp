@@ -300,6 +300,116 @@ export class GraphDatabase {
     }
   }
 
+  async searchTasks(filters = {}) {
+    const session = this.driver.session();
+    try {
+      let query = 'MATCH (t:Task)';
+      const params = {};
+      const conditions = [];
+      
+      // Text search in name and description
+      if (filters.search && filters.search.trim()) {
+        conditions.push('(toLower(t.name) CONTAINS toLower($search) OR toLower(t.description) CONTAINS toLower($search))');
+        params.search = filters.search.trim();
+      }
+      
+      // Status filter
+      if (filters.status) {
+        if (Array.isArray(filters.status)) {
+          conditions.push('t.status IN $status');
+          params.status = filters.status;
+        } else {
+          conditions.push('t.status = $status');
+          params.status = filters.status;
+        }
+      }
+      
+      // Progress range filter
+      if (filters.progressMin !== undefined || filters.progressMax !== undefined) {
+        if (filters.progressMin !== undefined && filters.progressMax !== undefined) {
+          conditions.push('t.progress >= $progressMin AND t.progress <= $progressMax');
+          params.progressMin = filters.progressMin;
+          params.progressMax = filters.progressMax;
+        } else if (filters.progressMin !== undefined) {
+          conditions.push('t.progress >= $progressMin');
+          params.progressMin = filters.progressMin;
+        } else {
+          conditions.push('t.progress <= $progressMax');
+          params.progressMax = filters.progressMax;
+        }
+      }
+      
+      // Date range filter for creation date
+      if (filters.createdAfter || filters.createdBefore) {
+        if (filters.createdAfter && filters.createdBefore) {
+          conditions.push('datetime(t.created) >= datetime($createdAfter) AND datetime(t.created) <= datetime($createdBefore)');
+          params.createdAfter = filters.createdAfter;
+          params.createdBefore = filters.createdBefore;
+        } else if (filters.createdAfter) {
+          conditions.push('datetime(t.created) >= datetime($createdAfter)');
+          params.createdAfter = filters.createdAfter;
+        } else {
+          conditions.push('datetime(t.created) <= datetime($createdBefore)');
+          params.createdBefore = filters.createdBefore;
+        }
+      }
+      
+      // Component-based filter
+      if (filters.componentIds && filters.componentIds.length > 0) {
+        query += ` 
+          OPTIONAL MATCH (t)-[:RELATES_TO]->(c:Component)
+          WITH t, collect(c) as allComponents
+          WHERE ANY(comp IN allComponents WHERE comp.id IN $componentIds)
+        `;
+        params.componentIds = filters.componentIds;
+      } else {
+        query += ' OPTIONAL MATCH (t)-[:RELATES_TO]->(c:Component)';
+      }
+      
+      // Add WHERE conditions if any
+      if (conditions.length > 0) {
+        const whereClause = conditions.join(' AND ');
+        if (filters.componentIds && filters.componentIds.length > 0) {
+          // WHERE already added in component filter
+          query = query.replace('WHERE ANY', 'AND (' + whereClause + ') AND ANY');
+        } else {
+          query += ' WHERE ' + whereClause;
+        }
+      }
+      
+      // Final part of query with grouping
+      if (filters.componentIds && filters.componentIds.length > 0) {
+        query += ' RETURN t, allComponents as relatedComponents';
+      } else {
+        query += ' WITH t, collect(c) as relatedComponents RETURN t, relatedComponents';
+      }
+      
+      // Add ordering
+      if (filters.orderBy) {
+        const orderField = filters.orderBy === 'created' ? 't.created' : 
+                          filters.orderBy === 'name' ? 't.name' : 
+                          filters.orderBy === 'status' ? 't.status' :
+                          filters.orderBy === 'progress' ? 't.progress' : 't.created';
+        const orderDirection = filters.orderDirection === 'ASC' ? 'ASC' : 'DESC';
+        query += ` ORDER BY ${orderField} ${orderDirection}`;
+      } else {
+        query += ' ORDER BY t.created DESC';
+      }
+      
+      // Add limit
+      const limit = filters.limit && filters.limit > 0 ? Math.min(filters.limit, 1000) : 100;
+      query += ` LIMIT ${limit}`;
+      
+      const result = await session.run(query, params);
+      return result.records.map(record => ({
+        ...record.get('t').properties,
+        relatedComponents: record.get('relatedComponents').map(c => c.properties || c)
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
   // Bulk Operations
   async createComponents(componentsData, metadata = {}) {
     const session = this.driver.session();
