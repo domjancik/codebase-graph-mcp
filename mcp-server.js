@@ -420,7 +420,7 @@ class MCPServer {
   // TASK MANAGEMENT TOOLS
   // ============================================================================
 
-  async createTask({ name, description, status = 'TODO', progress = 0, relatedComponentIds = [], metadata }) {
+  async createTask({ name, description, status = 'TODO', progress = 0, codebase, relatedComponentIds = [], metadata }) {
     const session = this.driver.session();
     try {
       const taskId = uuidv4();
@@ -434,6 +434,7 @@ class MCPServer {
           description: $description,
           status: $status,
           progress: $progress,
+          codebase: $codebase,
           created: datetime(),
           ${metadataProps}
         })
@@ -443,6 +444,7 @@ class MCPServer {
         description: description || '',
         status,
         progress,
+        codebase: codebase || '',
         ...metadataParams
       });
 
@@ -456,7 +458,7 @@ class MCPServer {
         `, { taskId, componentIds: relatedComponentIds });
       }
 
-      this.addToHistory('CREATE_TASK', { taskId, name, status });
+      this.addToHistory('CREATE_TASK', { taskId, name, status, codebase });
       
       return {
         id: taskId,
@@ -464,6 +466,7 @@ class MCPServer {
         description,
         status,
         progress,
+        codebase,
         relatedComponentIds,
         metadata
       };
@@ -523,6 +526,117 @@ class MCPServer {
         ...record.get('t').properties,
         relatedComponentIds: record.get('relatedComponentIds'),
         relatedComponents: record.get('relatedComponents').map(c => c.properties)
+      }));
+    } finally {
+      await session.close();
+    }
+  }
+
+  async searchTasks({ search, status, progressMin, progressMax, createdAfter, createdBefore, componentIds, orderBy, orderDirection, limit }) {
+    const session = this.driver.session();
+    try {
+      let query = 'MATCH (t:Task)';
+      const params = {};
+      const conditions = [];
+      
+      // Text search in name and description
+      if (search && search.trim()) {
+        conditions.push('(toLower(t.name) CONTAINS toLower($search) OR toLower(t.description) CONTAINS toLower($search))');
+        params.search = search.trim();
+      }
+      
+      // Status filter
+      if (status) {
+        if (Array.isArray(status)) {
+          conditions.push('t.status IN $status');
+          params.status = status;
+        } else {
+          conditions.push('t.status = $status');
+          params.status = status;
+        }
+      }
+      
+      // Progress range filter
+      if (progressMin !== undefined || progressMax !== undefined) {
+        if (progressMin !== undefined && progressMax !== undefined) {
+          conditions.push('t.progress >= $progressMin AND t.progress <= $progressMax');
+          params.progressMin = progressMin;
+          params.progressMax = progressMax;
+        } else if (progressMin !== undefined) {
+          conditions.push('t.progress >= $progressMin');
+          params.progressMin = progressMin;
+        } else {
+          conditions.push('t.progress <= $progressMax');
+          params.progressMax = progressMax;
+        }
+      }
+      
+      // Date range filter for creation date
+      if (createdAfter || createdBefore) {
+        if (createdAfter && createdBefore) {
+          conditions.push('datetime(t.created) >= datetime($createdAfter) AND datetime(t.created) <= datetime($createdBefore)');
+          params.createdAfter = createdAfter;
+          params.createdBefore = createdBefore;
+        } else if (createdAfter) {
+          conditions.push('datetime(t.created) >= datetime($createdAfter)');
+          params.createdAfter = createdAfter;
+        } else {
+          conditions.push('datetime(t.created) <= datetime($createdBefore)');
+          params.createdBefore = createdBefore;
+        }
+      }
+      
+      // Component-based filter
+      if (componentIds && componentIds.length > 0) {
+        query += ` 
+          OPTIONAL MATCH (t)-[:RELATES_TO]->(c:Component)
+          WITH t, collect(c) as allComponents
+          WHERE ANY(comp IN allComponents WHERE comp.id IN $componentIds)
+        `;
+        params.componentIds = componentIds;
+      } else {
+        query += ' OPTIONAL MATCH (t)-[:RELATES_TO]->(c:Component)';
+      }
+      
+      // Add WHERE conditions if any
+      if (conditions.length > 0) {
+        const whereClause = conditions.join(' AND ');
+        if (componentIds && componentIds.length > 0) {
+          // WHERE already added in component filter
+          query = query.replace('WHERE ANY', 'AND (' + whereClause + ') AND ANY');
+        } else {
+          query += ' WHERE ' + whereClause;
+        }
+      }
+      
+      // Final part of query with grouping
+      if (componentIds && componentIds.length > 0) {
+        query += ' RETURN t, allComponents as relatedComponents, [comp IN allComponents | comp.id] as relatedComponentIds';
+      } else {
+        query += ' WITH t, collect(c) as relatedComponents, collect(c.id) as relatedComponentIds RETURN t, relatedComponents, relatedComponentIds';
+      }
+      
+      // Add ordering
+      if (orderBy) {
+        const orderField = orderBy === 'created' ? 't.created' : 
+                          orderBy === 'name' ? 't.name' : 
+                          orderBy === 'status' ? 't.status' :
+                          orderBy === 'progress' ? 't.progress' : 't.created';
+        const orderDir = orderDirection === 'ASC' ? 'ASC' : 'DESC';
+        query += ` ORDER BY ${orderField} ${orderDir}`;
+      } else {
+        query += ' ORDER BY t.created DESC';
+      }
+      
+      // Add limit
+      const queryLimit = limit && limit > 0 ? Math.min(limit, 1000) : 100;
+      query += ` LIMIT ${queryLimit}`;
+      
+      const result = await session.run(query, params);
+      return result.records.map(record => ({
+        ...record.get('t').properties,
+        relatedComponentIds: record.get('relatedComponentIds'),
+        relatedComponents: record.get('relatedComponents').map(c => c.properties || c)
       }));
     } finally {
       await session.close();
@@ -709,20 +823,44 @@ class MCPServer {
   // RELATIONSHIP MANAGEMENT TOOLS
   // ============================================================================
 
-  async createRelationship({ type, sourceId, targetId, details }) {
+  async createRelationship({ type, sourceId, targetId, details, timeOrder, probability, reasoning }) {
     const session = this.driver.session();
     try {
       const relationshipId = uuidv4();
       const detailsProps = details ? Object.entries(details).map(([k, v]) => `${k}: $details_${k}`).join(', ') : '';
       const detailsParams = details ? Object.fromEntries(Object.entries(details).map(([k, v]) => [`details_${k}`, String(v)])) : {};
       
+      // Build temporal properties
+      const temporalProps = [];
+      const temporalParams = {};
+      
+      if (timeOrder !== undefined) {
+        temporalProps.push('timeOrder: $timeOrder');
+        temporalParams.timeOrder = timeOrder;
+      }
+      
+      if (probability !== undefined) {
+        temporalProps.push('probability: $probability');
+        temporalParams.probability = probability;
+      }
+      
+      if (reasoning !== undefined) {
+        temporalProps.push('reasoning: $reasoning');
+        temporalParams.reasoning = reasoning;
+      }
+      
+      const allProps = [
+        'id: $id',
+        'created: datetime()',
+        ...(detailsProps ? [detailsProps] : []),
+        ...temporalProps
+      ].join(', ');
+      
       const query = `
         MATCH (source:Component {id: $sourceId}), (target:Component {id: $targetId})
         CREATE (source)-[r:${type} {
-          id: $id,
-          created: datetime()
-          ${detailsProps ? ', ' + detailsProps : ''}
-        }]->(target)
+          ${allProps}
+        }]-> (target)
         RETURN source.name as sourceName, target.name as targetName
       `;
       
@@ -730,14 +868,15 @@ class MCPServer {
         id: relationshipId,
         sourceId,
         targetId,
-        ...detailsParams
+        ...detailsParams,
+        ...temporalParams
       });
 
       if (result.records.length === 0) {
         throw new Error('Source or target component not found');
       }
 
-      this.addToHistory('CREATE_RELATIONSHIP', { relationshipId, type, sourceId, targetId });
+      this.addToHistory('CREATE_RELATIONSHIP', { relationshipId, type, sourceId, targetId, timeOrder, probability, reasoning });
       
       return {
         id: relationshipId,
@@ -746,7 +885,10 @@ class MCPServer {
         targetId,
         sourceName: result.records[0].get('sourceName'),
         targetName: result.records[0].get('targetName'),
-        details
+        details,
+        timeOrder,
+        probability,
+        reasoning
       };
     } finally {
       await session.close();
@@ -756,7 +898,17 @@ class MCPServer {
   async createRelationshipsBulk({ relationships }) {
     const createdRelationships = [];
     for (const relationship of relationships) {
-      const created = await this.createRelationship(relationship);
+      // Extract temporal properties if they exist
+      const { type, sourceId, targetId, details, timeOrder, probability, reasoning } = relationship;
+      const created = await this.createRelationship({
+        type,
+        sourceId, 
+        targetId,
+        details,
+        timeOrder,
+        probability,
+        reasoning
+      });
       createdRelationships.push(created);
     }
     return createdRelationships;
@@ -792,12 +944,19 @@ class MCPServer {
       
       const result = await session.run(query, { componentId });
       
-      return result.records.map(record => ({
-        relationship: record.get('r').properties,
-        target: record.get('target').properties,
-        direction: record.get('direction'),
-        type: record.get('relType')
-      }));
+      return result.records.map(record => {
+        const relProps = record.get('r').properties;
+        return {
+          relationship: relProps,
+          target: record.get('target').properties,
+          direction: record.get('direction'),
+          type: record.get('relType'),
+          // Extract temporal fields if they exist
+          timeOrder: relProps.timeOrder,
+          probability: relProps.probability,
+          reasoning: relProps.reasoning
+        };
+      });
     } finally {
       await session.close();
     }
@@ -1184,6 +1343,7 @@ class MCPServer {
       'create_tasks_bulk': this.createTasksBulk.bind(this),
       'get_task': this.getTask.bind(this),
       'get_tasks': this.getTasks.bind(this),
+      'search_tasks': this.searchTasks.bind(this),
       'update_task_status': this.updateTaskStatus.bind(this),
       
       // Comment Management
