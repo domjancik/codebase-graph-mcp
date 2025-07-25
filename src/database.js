@@ -209,6 +209,16 @@ export class GraphDatabase {
 
   // Task Operations
   async createTask(taskData) {
+    // Validate progress value if provided
+    if (taskData.progress !== undefined) {
+      if (typeof taskData.progress !== 'number') {
+        throw new Error('Progress must be a number');
+      }
+      if (taskData.progress < 0 || taskData.progress > 1) {
+        throw new Error('Progress must be between 0 and 1 (inclusive)');
+      }
+    }
+    
     const task = new Task({ ...taskData, id: taskData.id || uuidv4() });
     const session = this.driver.session();
     
@@ -236,6 +246,16 @@ export class GraphDatabase {
   }
 
   async updateTaskStatus(id, status, progress = null) {
+    // Validate progress value if provided
+    if (progress !== null && progress !== undefined) {
+      if (typeof progress !== 'number') {
+        throw new Error('Progress must be a number');
+      }
+      if (progress < 0 || progress > 1) {
+        throw new Error('Progress must be between 0 and 1 (inclusive)');
+      }
+    }
+    
     const session = this.driver.session();
     try {
       const updates = { status };

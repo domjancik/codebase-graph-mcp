@@ -421,6 +421,14 @@ class MCPServer {
   // ============================================================================
 
   async createTask({ name, description, status = 'TODO', progress = 0, codebase, relatedComponentIds = [], metadata }) {
+    // Validate progress value
+    if (typeof progress !== 'number') {
+      throw new Error('Progress must be a number');
+    }
+    if (progress < 0 || progress > 1) {
+      throw new Error('Progress must be between 0 and 1 (inclusive)');
+    }
+    
     const session = this.driver.session();
     try {
       const taskId = uuidv4();
@@ -644,6 +652,16 @@ class MCPServer {
   }
 
   async updateTaskStatus({ id, status, progress }) {
+    // Validate progress value if provided
+    if (progress !== undefined) {
+      if (typeof progress !== 'number') {
+        throw new Error('Progress must be a number');
+      }
+      if (progress < 0 || progress > 1) {
+        throw new Error('Progress must be between 0 and 1 (inclusive)');
+      }
+    }
+    
     const session = this.driver.session();
     try {
       const updates = { status };
