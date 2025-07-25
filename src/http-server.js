@@ -92,6 +92,7 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     
     // Task API endpoints
     this.app.get('/api/tasks', this.handleGetTasks.bind(this));
+    this.app.get('/api/tasks/search', this.handleSearchTasks.bind(this));
     this.app.get('/api/tasks/:id', this.handleGetTask.bind(this));
     this.app.post('/api/tasks', this.handleCreateTask.bind(this));
     this.app.put('/api/tasks/:id', this.handleUpdateTask.bind(this));
@@ -467,6 +468,33 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     }
   }
 
+  async handleSearchTasks(req, res) {
+    try {
+      const searchFilters = {
+        search: req.query.search,
+        status: req.query.status ? (req.query.status.includes(',') ? req.query.status.split(',') : req.query.status) : undefined,
+        progressMin: req.query.progressMin ? parseFloat(req.query.progressMin) : undefined,
+        progressMax: req.query.progressMax ? parseFloat(req.query.progressMax) : undefined,
+        createdAfter: req.query.createdAfter,
+        createdBefore: req.query.createdBefore,
+        componentIds: req.query.componentIds ? (typeof req.query.componentIds === 'string' ? req.query.componentIds.split(',') : req.query.componentIds) : undefined,
+        orderBy: req.query.orderBy,
+        orderDirection: req.query.orderDirection,
+        limit: req.query.limit ? parseInt(req.query.limit) : undefined
+      };
+      
+      // Remove undefined filters
+      Object.keys(searchFilters).forEach(key => {
+        if (searchFilters[key] === undefined) delete searchFilters[key];
+      });
+      
+      const tasks = await this.searchTasks(searchFilters);
+      res.json({ success: true, data: tasks, filters: searchFilters });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
   async handleGetTask(req, res) {
     try {
       const task = await this.getTask({ id: req.params.id });
@@ -643,6 +671,10 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
 
   async getTasks(args) {
     return await this.db.getTasks(args.status);
+  }
+
+  async searchTasks(filters) {
+    return await this.db.searchTasks(filters);
   }
 
   async getTask(args) {
