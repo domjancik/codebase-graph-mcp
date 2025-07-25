@@ -39,7 +39,11 @@ export const RelationshipType = {
   CONFLICTS_WITH: 'CONFLICTS_WITH',
   SUPPORTS: 'SUPPORTS',
   ALLOCATES_TO: 'ALLOCATES_TO',
-  REALIZES: 'REALIZES'
+  REALIZES: 'REALIZES',
+  // Temporal relationships
+  PRECEDES: 'PRECEDES',
+  FOLLOWS: 'FOLLOWS',
+  CONCURRENT: 'CONCURRENT'
 };
 
 export const TaskStatus = {
@@ -96,7 +100,11 @@ export const RelationshipSchema = z.object({
   type: z.nativeEnum(RelationshipType),
   sourceId: z.string().uuid(),
   targetId: z.string().uuid(),
-  details: z.record(z.string()).default({})
+  details: z.record(z.string()).default({}),
+  // Temporal relationship fields
+  timeOrder: z.number().int().min(1).optional(),
+  probability: z.number().min(0).max(100).optional(),
+  reasoning: z.string().optional()
 });
 
 export const TaskSchema = z.object({
@@ -105,6 +113,7 @@ export const TaskSchema = z.object({
   description: z.string().optional(),
   status: z.nativeEnum(TaskStatus),
   progress: z.number().min(0).max(1).default(0),
+  codebase: z.string().optional(),
   relatedComponentIds: z.array(z.string().uuid()).default([]),
   metadata: z.record(z.string()).default({})
 });
@@ -139,12 +148,25 @@ export class Relationship {
   }
 
   toRelation() {
+    const properties = {
+      id: this.id,
+      ...this.details
+    };
+    
+    // Add temporal fields if they exist
+    if (this.timeOrder !== undefined) {
+      properties.timeOrder = this.timeOrder;
+    }
+    if (this.probability !== undefined) {
+      properties.probability = this.probability;
+    }
+    if (this.reasoning !== undefined) {
+      properties.reasoning = this.reasoning;
+    }
+    
     return {
       type: this.type,
-      properties: {
-        id: this.id,
-        ...this.details
-      }
+      properties
     };
   }
 }
@@ -164,6 +186,7 @@ export class Task {
         description: this.description || '',
         status: this.status,
         progress: this.progress,
+        codebase: this.codebase || '',
         ...this.metadata
       }
     };
