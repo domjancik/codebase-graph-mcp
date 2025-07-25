@@ -36,7 +36,9 @@ export class GraphDatabase {
       await session.run('CREATE INDEX component_name IF NOT EXISTS FOR (c:Component) ON (c.name)');
       await session.run('CREATE INDEX component_type IF NOT EXISTS FOR (c:Component) ON (c.type)');
       await session.run('CREATE INDEX component_codebase IF NOT EXISTS FOR (c:Component) ON (c.codebase)');
+      await session.run('CREATE INDEX component_created IF NOT EXISTS FOR (c:Component) ON (c.created)');
       await session.run('CREATE INDEX task_status IF NOT EXISTS FOR (t:Task) ON (t.status)');
+      await session.run('CREATE INDEX task_created IF NOT EXISTS FOR (t:Task) ON (t.created)');
       await session.run('CREATE INDEX comment_created IF NOT EXISTS FOR (c:Comment) ON (c.created)');
       
       // Initialize change history schema
@@ -52,11 +54,12 @@ export class GraphDatabase {
     const session = this.driver.session();
     
     try {
+      const nodeData = component.toNode();
       const result = await session.run(`
         CREATE (c:Component:${component.type})
-        SET c = $properties
+        SET c = $properties, c.created = datetime()
         RETURN c
-      `, { properties: component.toNode().properties });
+      `, { properties: nodeData.properties });
       
       const createdComponent = result.records[0]?.get('c').properties;
       
@@ -93,7 +96,7 @@ export class GraphDatabase {
     try {
       const result = await session.run(`
         MATCH (c:Component {id: $id})
-        SET c += $updates
+        SET c += $updates, c.updated = datetime()
         RETURN c
       `, { id, updates });
       
@@ -445,11 +448,12 @@ export class GraphDatabase {
       for (const componentData of componentsData) {
         const component = new Component({ ...componentData, id: componentData.id || uuidv4() });
         
+        const nodeData = component.toNode();
         const result = await tx.run(`
           CREATE (c:Component:${component.type})
-          SET c = $properties
+          SET c = $properties, c.created = datetime()
           RETURN c
-        `, { properties: component.toNode().properties });
+        `, { properties: nodeData.properties });
         
         const createdComponent = result.records[0]?.get('c').properties;
         if (createdComponent) {
@@ -531,11 +535,21 @@ export class GraphDatabase {
       for (const taskData of tasksData) {
         const task = new Task({ ...taskData, id: taskData.id || uuidv4() });
         
+        const nodeData = task.toNode();
+        const { created, ...otherProperties } = nodeData.properties;
+        
         const result = await tx.run(`
-          CREATE (t:Task)
-          SET t = $properties
+          CREATE (t:Task {
+            id: $id,
+            name: $name,
+            description: $description,
+            status: $status,
+            progress: $progress,
+            codebase: $codebase,
+            created: datetime()
+          })
           RETURN t
-        `, { properties: task.toNode().properties });
+        `, otherProperties);
         
         const createdTask = result.records[0]?.get('t').properties;
         if (createdTask) {
