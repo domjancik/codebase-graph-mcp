@@ -15,7 +15,10 @@ export const ComponentType = {
   FEATURE: 'FEATURE',
   USER_STORY: 'USER_STORY',
   ACCEPTANCE_CRITERIA: 'ACCEPTANCE_CRITERIA',
-  TEST_CASE: 'TEST_CASE'
+  TEST_CASE: 'TEST_CASE',
+  NOTE: 'NOTE',
+  DOCUMENT: 'DOCUMENT',
+  IDEA: 'IDEA'
 };
 
 export const RelationshipType = {
