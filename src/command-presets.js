@@ -7,7 +7,7 @@
  * Command groups organized by functionality
  */
 export const COMMAND_GROUPS = {
-  // Read-only operations
+  // Read-only operations (basic data access)
   read: [
     'get_component',
     'search_components',
@@ -17,23 +17,15 @@ export const COMMAND_GROUPS = {
     'get_tasks',
     'get_node_comments',
     'get_comment',
-    'get_codebase_overview',
-    'get_change_history',
-    'list_snapshots',
-    'get_history_stats',
-    'get_waiting_agents',
-    'get_pending_commands',
-    'get_command_history'
+    'get_codebase_overview'
   ],
 
-  // Component management operations
+  // Component management operations (write operations only)
   components: [
     'create_component',
     'create_components_bulk',
     'update_component',
-    'delete_component',
-    'get_component',
-    'search_components'
+    'delete_component'
   ],
 
   // Task management operations
@@ -54,12 +46,10 @@ export const COMMAND_GROUPS = {
     'get_comment'
   ],
 
-  // Relationship management operations
+  // Relationship management operations (write operations only)
   relationships: [
     'create_relationship',
-    'create_relationships_bulk',
-    'get_component_relationships',
-    'get_dependency_tree'
+    'create_relationships_bulk'
   ],
 
   // Write operations (create, update, delete)
