@@ -602,7 +602,7 @@ Server logs are written to stderr and include:
 The `recipes/` folder contains structured workflows and best practices for common operations:
 
 ### Available Recipes
-- **`NOTE_INGESTION_RECIPE.md`**: Step-by-step guide for AI agents to transform unstructured notes into structured component graphs
+- **`INGEST_NOTE.md`**: Step-by-step guide for AI agents to transform unstructured notes into structured component graphs
   - Process for creating NOTE, IDEA, FEATURE, and other component types
   - Relationship modeling patterns
   - Bulk operation workflows
