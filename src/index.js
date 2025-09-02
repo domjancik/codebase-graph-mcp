@@ -12,6 +12,7 @@ import { GraphDatabase } from './database.js';
 import { ComponentType, RelationshipType, TaskStatus, ProposedType, Vote } from './models.js';
 import { globalCommandQueue } from './command-queue.js';
 import { CodebaseGraphHTTPServer } from './http-server.js';
+import { commandFilter } from './command-filter.js';
 
 export class CodebaseGraphMCPServer {
   constructor() {
@@ -49,7 +50,8 @@ export class CodebaseGraphMCPServer {
 
   setupHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const coreTools = [
+      // Get all tools first
+      const allTools = [
         // Component Management
         {
           name: 'create_component',
@@ -588,8 +590,18 @@ export class CodebaseGraphMCPServer {
         }
       ] : [];
       
+      // Filter tools based on command filtering configuration
+      // This reduces context load by not even exposing disallowed tools
+      const filteredTools = [...allTools, ...votingTools].filter(tool => {
+        return commandFilter.isCommandAllowed(tool.name);
+      });
+      
+      if (commandFilter.config.debugFiltering) {
+        console.log(`[Command Filter] ListTools: Filtered from ${allTools.length + votingTools.length} to ${filteredTools.length} tools`);
+      }
+      
       return {
-        tools: [...coreTools, ...votingTools]
+        tools: filteredTools
       };
     });
 
@@ -597,6 +609,8 @@ export class CodebaseGraphMCPServer {
       const { name, arguments: args } = request.params;
 
       try {
+        // Validate command against filtering system
+        commandFilter.validateCommand(name, args);
         switch (name) {
           case 'create_component':
             return await this.createComponent(args);
@@ -692,6 +706,12 @@ export class CodebaseGraphMCPServer {
         }
       } catch (error) {
         if (error instanceof McpError) throw error;
+        
+        // Handle command filtering errors
+        if (error.code === 'COMMAND_FILTERED') {
+          throw new McpError(ErrorCode.InvalidRequest, `Command '${name}' is not allowed: ${error.filterResult?.reason || error.message}`);
+        }
+        
         throw new McpError(ErrorCode.InternalError, `Tool execution failed: ${error.message}`);
       }
     });
