@@ -597,6 +597,26 @@ Server logs are written to stderr and include:
 - Schema initialization progress
 - Error messages with details
 
+## Recipes & Best Practices
+
+The `recipes/` folder contains structured workflows and best practices for common operations:
+
+### Available Recipes
+- **`NOTE_INGESTION_RECIPE.md`**: Step-by-step guide for AI agents to transform unstructured notes into structured component graphs
+  - Process for creating NOTE, IDEA, FEATURE, and other component types
+  - Relationship modeling patterns
+  - Bulk operation workflows
+  - Quality checklists and pro tips
+
+### Using Recipes
+These recipes are designed to help AI agents and developers:
+1. **Maintain consistency** in how data is structured
+2. **Follow proven patterns** for component relationships
+3. **Use efficient bulk operations** for better performance
+4. **Preserve context** and traceability
+
+Recipes include concrete examples, type selection guides, and quality checklists to ensure reliable results across different use cases.
+
 ## Contributing
 
 1. Fork the repository
