@@ -5,6 +5,7 @@ import cors from 'cors';
 import { EventEmitter } from 'events';
 import { globalCommandQueue } from './command-queue.js';
 import { GraphDatabase } from './database.js';
+import { commandFilter } from './command-filter.js';
 
 /**
  * HTTP Server with Server-Sent Events (SSE) support for external client integration
@@ -304,10 +305,29 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
     }
   }
 
+  /**
+   * Helper method to validate commands against filtering system
+   */
+  validateCommand(commandName, args = {}) {
+    try {
+      commandFilter.validateCommand(commandName, args);
+    } catch (error) {
+      if (error.code === 'COMMAND_FILTERED') {
+        const filterError = new Error(`Command '${commandName}' is not allowed: ${error.filterResult?.reason || error.message}`);
+        filterError.statusCode = 403;
+        filterError.isCommandFiltered = true;
+        throw filterError;
+      }
+      throw error;
+    }
+  }
+
   // REST API Handlers
 
   async handleGetComponents(req, res) {
     try {
+      this.validateCommand('search_components', req.query);
+      
       const filters = {
         type: req.query.type,
         name: req.query.name,
@@ -322,34 +342,43 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
       const components = await this.searchComponents(filters);
       res.json({ success: true, data: components });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 500);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
   async handleGetComponent(req, res) {
     try {
+      this.validateCommand('get_component', { id: req.params.id });
+      
       const component = await this.getComponent({ id: req.params.id });
       if (!component) {
         return res.status(404).json({ success: false, error: 'Component not found' });
       }
       res.json({ success: true, data: component });
     } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 500);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
   async handleCreateComponent(req, res) {
     try {
+      this.validateCommand('create_component', req.body);
+      
       const component = await this.createComponent(req.body);
       this.broadcastSSE('component-created', component);
       res.status(201).json({ success: true, data: component });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 400);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
   async handleUpdateComponent(req, res) {
     try {
+      this.validateCommand('update_component', { id: req.params.id, updates: req.body });
+      
       const component = await this.updateComponent({ 
         id: req.params.id, 
         updates: req.body 
@@ -357,17 +386,21 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
       this.broadcastSSE('component-updated', component);
       res.json({ success: true, data: component });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 400);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
   async handleDeleteComponent(req, res) {
     try {
+      this.validateCommand('delete_component', { id: req.params.id });
+      
       await this.deleteComponent({ id: req.params.id });
       this.broadcastSSE('component-deleted', { id: req.params.id });
       res.json({ success: true, message: 'Component deleted' });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 400);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
@@ -509,17 +542,22 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
 
   async handleCreateTask(req, res) {
     try {
+      this.validateCommand('create_task', req.body);
+      
       const task = await this.createTask(req.body);
       this.broadcastSSE('task-created', task);
       res.status(201).json({ success: true, data: task });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 400);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
   // Bulk operation handlers
   async handleCreateBulkComponents(req, res) {
     try {
+      this.validateCommand('create_components_bulk', req.body);
+      
       const { components } = req.body;
       if (!Array.isArray(components) || components.length === 0) {
         return res.status(400).json({ 
@@ -543,7 +581,8 @@ export class CodebaseGraphHTTPServer extends EventEmitter {
         message: `Successfully created ${createdComponents.length} components` 
       });
     } catch (error) {
-      res.status(400).json({ success: false, error: error.message });
+      const statusCode = error.statusCode || (error.isCommandFiltered ? 403 : 400);
+      res.status(statusCode).json({ success: false, error: error.message });
     }
   }
 
